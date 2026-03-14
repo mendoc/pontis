@@ -1,8 +1,10 @@
 import { describe, it, beforeAll, afterAll } from 'vitest'
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import bcrypt from 'bcrypt'
 import { buildTestApp } from '../helpers/build'
 import { makeMockPrisma } from '../helpers/prisma'
+import { hashToken } from '../../lib/hash'
 import type { FastifyInstance } from 'fastify'
 
 const mockUserBase = {
@@ -20,15 +22,17 @@ describe('POST /auth/register', () => {
   beforeAll(async () => {
     app = await buildTestApp({
       prisma: makeMockPrisma({
-        findUnique: async () => null,
-        create: async (args: any) => ({
-          id: 'user-uuid-1',
-          email: args.data.email,
-          passwordHash: args.data.passwordHash,
-          gitlabId: null,
-          gitlabToken: null,
-          createdAt: new Date(),
-        }),
+        user: {
+          findUnique: async () => null,
+          create: async (args: any) => ({
+            id: 'user-uuid-1',
+            email: args.data.email,
+            passwordHash: args.data.passwordHash,
+            gitlabId: null,
+            gitlabToken: null,
+            createdAt: new Date(),
+          }),
+        },
       }),
     })
   })
@@ -78,7 +82,9 @@ describe('POST /auth/register - duplicate email', () => {
   beforeAll(async () => {
     app = await buildTestApp({
       prisma: makeMockPrisma({
-        findUnique: async () => ({ ...mockUserBase, passwordHash: 'hash' }),
+        user: {
+          findUnique: async () => ({ ...mockUserBase, passwordHash: 'hash' }),
+        },
       }),
     })
   })
@@ -107,7 +113,9 @@ describe('POST /auth/login', () => {
     const passwordHash = await bcrypt.hash('password123', 1)
     app = await buildTestApp({
       prisma: makeMockPrisma({
-        findUnique: async () => ({ ...mockUserBase, passwordHash }),
+        user: {
+          findUnique: async () => ({ ...mockUserBase, passwordHash }),
+        },
       }),
     })
   })
@@ -149,7 +157,7 @@ describe('POST /auth/login - unknown email', () => {
 
   beforeAll(async () => {
     app = await buildTestApp({
-      prisma: makeMockPrisma({ findUnique: async () => null }),
+      prisma: makeMockPrisma({ user: { findUnique: async () => null } }),
     })
   })
 
@@ -170,13 +178,32 @@ describe('POST /auth/login - unknown email', () => {
 // ------------------------------------------------------------------ refresh
 describe('POST /auth/refresh', () => {
   let app: FastifyInstance
+  let refreshToken: string
+  let tokenRecord: { id: string; familyId: string; tokenHash: string; revokedAt: null }
 
   beforeAll(async () => {
+    const familyId = randomUUID()
+
+    // Build app first so we can call generateTokens to get the real token
     app = await buildTestApp({
       prisma: makeMockPrisma({
-        findUnique: async () => ({ ...mockUserBase, passwordHash: null }),
+        user: { findUnique: async () => ({ ...mockUserBase, passwordHash: null }) },
+        refreshToken: {
+          findUnique: async () => tokenRecord ?? null,
+          update: async () => ({}),
+          create: async () => ({}),
+        },
       }),
     })
+
+    const result = app.generateTokens({ sub: mockUserBase.id, email: mockUserBase.email }, familyId)
+    refreshToken = result.refreshToken
+    tokenRecord = {
+      id: 'rt-1',
+      familyId,
+      tokenHash: hashToken(refreshToken),
+      revokedAt: null,
+    }
   })
 
   afterAll(async () => {
@@ -184,7 +211,6 @@ describe('POST /auth/refresh', () => {
   })
 
   it('valid cookie → 200, body has accessToken', async () => {
-    const { refreshToken } = app.generateTokens({ sub: mockUserBase.id, email: mockUserBase.email })
     const response = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
@@ -202,13 +228,69 @@ describe('POST /auth/refresh', () => {
     assert.equal(body.error, 'No refresh token')
   })
 
-  it('invalid cookie value → 401', async () => {
+  it('invalid JWT → 401', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
       headers: { cookie: 'refresh_token=thisisnotavalidtoken' },
     })
     assert.equal(response.statusCode, 401)
+  })
+
+  it('valid JWT but not in DB → 401', async () => {
+    // Build a separate app whose mock always returns null for findUnique
+    const isolatedApp = await buildTestApp({
+      prisma: makeMockPrisma({
+        refreshToken: { findUnique: async () => null },
+      }),
+    })
+    const { refreshToken: orphanToken } = isolatedApp.generateTokens(
+      { sub: mockUserBase.id, email: mockUserBase.email },
+      randomUUID()
+    )
+    const response = await isolatedApp.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { cookie: `refresh_token=${orphanToken}` },
+    })
+    await isolatedApp.close()
+    assert.equal(response.statusCode, 401)
+  })
+
+  it('reuse detected (token already revoked) → 401 + revokes family', async () => {
+    const familyId = randomUUID()
+    let familyRevoked = false
+
+    const isolatedApp = await buildTestApp({
+      prisma: makeMockPrisma({
+        refreshToken: {
+          findUnique: async () => ({
+            id: 'rt-old',
+            familyId,
+            tokenHash: 'whatever',
+            revokedAt: new Date(), // already revoked
+          }),
+          updateMany: async () => {
+            familyRevoked = true
+            return { count: 1 }
+          },
+        },
+      }),
+    })
+    const { refreshToken: revokedToken } = isolatedApp.generateTokens(
+      { sub: mockUserBase.id, email: mockUserBase.email },
+      familyId
+    )
+    const response = await isolatedApp.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { cookie: `refresh_token=${revokedToken}` },
+    })
+    await isolatedApp.close()
+    assert.equal(response.statusCode, 401)
+    const body = response.json<{ error: string }>()
+    assert.equal(body.error, 'Refresh token reuse detected')
+    assert.ok(familyRevoked, 'entire family should be revoked')
   })
 })
 
@@ -217,7 +299,11 @@ describe('GET /auth/logout', () => {
   let app: FastifyInstance
 
   beforeAll(async () => {
-    app = await buildTestApp()
+    app = await buildTestApp({
+      prisma: makeMockPrisma({
+        refreshToken: { updateMany: async () => ({ count: 1 }) },
+      }),
+    })
   })
 
   afterAll(async () => {

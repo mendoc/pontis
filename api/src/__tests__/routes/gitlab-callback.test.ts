@@ -49,14 +49,16 @@ describe('GET /auth/gitlab/callback - with env vars', () => {
     Object.assign(process.env, GITLAB_ENV)
     app = await buildTestApp({
       prisma: makeMockPrisma({
-        upsert: async (args: any) => ({
-          id: 'user-uuid-gitlab',
-          email: args.create.email,
-          gitlabId: args.create.gitlabId,
-          gitlabToken: args.create.gitlabToken,
-          passwordHash: null,
-          createdAt: new Date(),
-        }),
+        user: {
+          upsert: async (args: any) => ({
+            id: 'user-uuid-gitlab',
+            email: args.create.email,
+            gitlabId: args.create.gitlabId,
+            gitlabToken: args.create.gitlabToken,
+            passwordHash: null,
+            createdAt: new Date(),
+          }),
+        },
       }),
     })
     originalDispatcher = getGlobalDispatcher()

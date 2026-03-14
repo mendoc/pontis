@@ -1,17 +1,20 @@
 import { FastifyPluginAsync } from 'fastify'
 import bcrypt from 'bcrypt'
 import { fetch } from 'undici'
+import { randomUUID } from 'node:crypto'
 import { RegisterBody, LoginBody } from './schemas'
+import { hashToken } from '../../lib/hash'
 
 const REFRESH_COOKIE = 'refresh_token'
 const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS ?? '12', 10)
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 const cookieOpts = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'strict' as const,
   path: '/',
-  maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+  maxAge: REFRESH_TTL_MS / 1000,
 }
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -34,7 +37,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       data: { email, passwordHash },
     })
 
-    const tokens = fastify.generateTokens({ sub: user.id, email: user.email })
+    const familyId = randomUUID()
+    const tokens = fastify.generateTokens({ sub: user.id, email: user.email }, familyId)
+
+    await fastify.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        familyId,
+        tokenHash: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      },
+    })
 
     reply.setCookie(REFRESH_COOKIE, tokens.refreshToken, cookieOpts)
     return reply.status(201).send({ accessToken: tokens.accessToken, userId: user.id })
@@ -59,7 +72,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send({ error: 'Invalid credentials' })
     }
 
-    const tokens = fastify.generateTokens({ sub: user.id, email: user.email })
+    const familyId = randomUUID()
+    const tokens = fastify.generateTokens({ sub: user.id, email: user.email }, familyId)
+
+    await fastify.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        familyId,
+        tokenHash: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      },
+    })
 
     reply.setCookie(REFRESH_COOKIE, tokens.refreshToken, cookieOpts)
     return reply.send({ accessToken: tokens.accessToken, userId: user.id })
@@ -72,11 +95,29 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send({ error: 'No refresh token' })
     }
 
-    let payload: { sub: string }
+    let payload: { sub: string; familyId: string }
     try {
-      payload = fastify.verifyRefreshToken(token) as { sub: string }
+      payload = fastify.verifyRefreshToken(token)
     } catch {
       return reply.status(401).send({ error: 'Invalid or expired refresh token' })
+    }
+
+    const stored = await fastify.prisma.refreshToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+    })
+
+    if (!stored) {
+      return reply.status(401).send({ error: 'Invalid or expired refresh token' })
+    }
+
+    // Reuse detected: token was already revoked — compromise the entire family
+    if (stored.revokedAt) {
+      await fastify.prisma.refreshToken.updateMany({
+        where: { familyId: stored.familyId },
+        data: { revokedAt: new Date() },
+      })
+      reply.clearCookie(REFRESH_COOKIE, { path: '/' })
+      return reply.status(401).send({ error: 'Refresh token reuse detected' })
     }
 
     const user = await fastify.prisma.user.findUnique({ where: { id: payload.sub } })
@@ -84,14 +125,41 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send({ error: 'User not found' })
     }
 
-    const tokens = fastify.generateTokens({ sub: user.id, email: user.email })
+    // Revoke current token and issue a new one in the same family
+    await fastify.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { revokedAt: new Date() },
+    })
+
+    const tokens = fastify.generateTokens({ sub: user.id, email: user.email }, stored.familyId)
+
+    await fastify.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        familyId: stored.familyId,
+        tokenHash: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      },
+    })
 
     reply.setCookie(REFRESH_COOKIE, tokens.refreshToken, cookieOpts)
     return reply.send({ accessToken: tokens.accessToken })
   })
 
   // GET /auth/logout
-  fastify.get('/logout', async (_request, reply) => {
+  fastify.get('/logout', async (request, reply) => {
+    const token = request.cookies?.[REFRESH_COOKIE]
+    if (token) {
+      try {
+        fastify.verifyRefreshToken(token)
+        await fastify.prisma.refreshToken.updateMany({
+          where: { tokenHash: hashToken(token), revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+      } catch {
+        // Token invalid or expired — still clear the cookie
+      }
+    }
     reply.clearCookie(REFRESH_COOKIE, { path: '/' })
     return reply.send({ ok: true })
   })
@@ -132,7 +200,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(503).send({ error: 'GitLab OAuth2 not configured' })
     }
 
-    // Exchange code for token
     const tokenRes = await fetch(`${gitlabUrl}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -151,7 +218,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     const tokenData = (await tokenRes.json()) as { access_token: string }
 
-    // Fetch GitLab user profile
     const profileRes = await fetch(`${gitlabUrl}/api/v4/user`, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     })
@@ -162,7 +228,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     const profile = (await profileRes.json()) as { id: number; email: string }
 
-    // Upsert user
     const user = await fastify.prisma.user.upsert({
       where: { gitlabId: profile.id },
       update: { gitlabToken: tokenData.access_token, email: profile.email },
@@ -173,7 +238,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       },
     })
 
-    const tokens = fastify.generateTokens({ sub: user.id, email: user.email })
+    const familyId = randomUUID()
+    const tokens = fastify.generateTokens({ sub: user.id, email: user.email }, familyId)
+
+    await fastify.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        familyId,
+        tokenHash: hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      },
+    })
 
     reply.setCookie(REFRESH_COOKIE, tokens.refreshToken, cookieOpts)
     return reply.send({ accessToken: tokens.accessToken, userId: user.id })

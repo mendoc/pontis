@@ -1,17 +1,39 @@
 import { PrismaClient } from '@prisma/client'
 
-export type UserMethods = {
-  findUnique?: (args: any) => Promise<any>
-  create?: (args: any) => Promise<any>
-  upsert?: (args: any) => Promise<any>
+type AnyFn = (args: any) => Promise<any>
+
+export interface MockUserMethods {
+  findUnique?: AnyFn
+  create?: AnyFn
+  upsert?: AnyFn
 }
 
-export function makeMockPrisma(userMethods: UserMethods = {}): PrismaClient {
+export interface MockRefreshTokenMethods {
+  create?: AnyFn
+  findUnique?: AnyFn
+  update?: AnyFn
+  updateMany?: AnyFn
+}
+
+export interface MockPrismaMethods {
+  user?: MockUserMethods
+  refreshToken?: MockRefreshTokenMethods
+}
+
+export function makeMockPrisma(methods: MockPrismaMethods = {}): PrismaClient {
+  const { user = {}, refreshToken = {} } = methods
+
   return {
     user: {
-      findUnique: userMethods.findUnique ?? (async () => null),
-      create: userMethods.create ?? (async (args: any) => ({ id: 'mock-id', ...args.data })),
-      upsert: userMethods.upsert ?? (async (args: any) => ({ id: 'mock-id', ...args.create })),
+      findUnique: user.findUnique ?? (async () => null),
+      create: user.create ?? (async (args: any) => ({ id: 'mock-id', ...args.data })),
+      upsert: user.upsert ?? (async (args: any) => ({ id: 'mock-id', ...args.create })),
+    },
+    refreshToken: {
+      create: refreshToken.create ?? (async (args: any) => ({ id: 'mock-rt-id', ...args.data })),
+      findUnique: refreshToken.findUnique ?? (async () => null),
+      update: refreshToken.update ?? (async () => ({})),
+      updateMany: refreshToken.updateMany ?? (async () => ({ count: 0 })),
     },
     $connect: async () => {},
     $disconnect: async () => {},
