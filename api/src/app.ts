@@ -6,7 +6,7 @@ import { PrismaClient } from '@prisma/client'
 import prismaPlugin from './plugins/prisma'
 import jwtPlugin from './plugins/jwt'
 import healthRoutes from './routes/health'
-import authRoutes from './routes/auth'
+import authRoutes from './modules/auth/auth.routes'
 
 export interface BuildAppOptions {
   prismaOverride?: PrismaClient
