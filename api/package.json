@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e ../.env -- ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:docker": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "dotenv -e ../.env -- node dist/index.js",
     "db:migrate": "dotenv -e ../.env -- prisma migrate dev",

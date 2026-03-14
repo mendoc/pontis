@@ -2,35 +2,45 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci
+# --ignore-scripts skips postinstall (prisma migrate deploy needs a running DB — handled at startup)
+RUN npm pkg delete scripts.postinstall && npm install
 
-COPY tsconfig.json ./
-COPY src ./src/
-
-RUN npm run db:generate
+RUN npx prisma generate
 RUN npm run build
 
-# ── Production image ──────────────────────────────────────────────────────────
+# ── Production image ───────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
 WORKDIR /app
+
+RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
 
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci --omit=dev
+RUN npm pkg delete scripts.postinstall && npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# Copy prisma CLI so the entrypoint can run migrations
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
-RUN addgroup -S pontis && adduser -S pontis -G pontis
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN addgroup -S pontis && adduser -S pontis -G pontis \
+  && chmod +x /usr/local/bin/docker-entrypoint.sh
+
 USER pontis
 
 EXPOSE 3001
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "dist/index.js"]
