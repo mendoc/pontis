@@ -1,0 +1,46 @@
+import Fastify from 'fastify'
+import cookie from '@fastify/cookie'
+import cors from '@fastify/cors'
+import { PrismaClient } from '@prisma/client'
+
+import prismaPlugin from './plugins/prisma'
+import jwtPlugin from './plugins/jwt'
+import healthRoutes from './routes/health'
+import authRoutes from './routes/auth'
+
+export interface BuildAppOptions {
+  prismaOverride?: PrismaClient
+}
+
+export async function buildApp(opts: BuildAppOptions = {}): Promise<ReturnType<typeof Fastify>> {
+  const fastify = Fastify({
+    logger: {
+      level: process.env.NODE_ENV === 'test' ? 'silent' : process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      transport:
+        process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test'
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
+    },
+  })
+
+  // Plugins
+  await fastify.register(cors, {
+    origin: process.env.CORS_ORIGIN ?? true,
+    credentials: true,
+  })
+  await fastify.register(cookie)
+
+  if (opts.prismaOverride) {
+    fastify.decorate('prisma', opts.prismaOverride)
+  } else {
+    await fastify.register(prismaPlugin)
+  }
+
+  await fastify.register(jwtPlugin)
+
+  // Routes
+  await fastify.register(healthRoutes)
+  await fastify.register(authRoutes, { prefix: '/auth' })
+
+  return fastify
+}

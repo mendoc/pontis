@@ -4,7 +4,7 @@ import { fetch } from 'undici'
 import { RegisterBody, LoginBody } from './schemas'
 
 const REFRESH_COOKIE = 'refresh_token'
-const BCRYPT_ROUNDS = 12
+const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS ?? '12', 10)
 
 const cookieOpts = {
   httpOnly: true,

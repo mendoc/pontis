@@ -6,17 +6,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Pontis is a self-hosted PaaS (Platform as a Service) — a Netlify/Vercel/Heroku alternative with full sovereignty over data, infrastructure, and costs. Every project is deployed as its own Docker container, reachable at `<slug>.app.ongoua.pro` with automatic HTTPS via Let's Encrypt DNS-01.
 
-**Current status:** Phase 1 (infrastructure) is validated in production. Phase 2 (authentication + monorepo init) is next.
+**Current status:** Phase 2 (authentication + monorepo) is complete. Phase 3 (Static Sites) is next.
 
-## Planned Monorepo Structure
-
-The repo will be organized as three packages:
+## Monorepo Structure
 
 ```
-/api      — Fastify backend (Node.js 20), port 3001
-/web      — Next.js 14 dashboard (App Router + Tailwind CSS)
-/worker   — BullMQ background worker (build jobs)
+/api      — Fastify backend (Node.js 20), port 3001  ✅ implemented
+/web      — Next.js 14 dashboard (App Router + Tailwind CSS)  🔜 planned
+/worker   — BullMQ background worker (build jobs)  🔜 planned
 ```
+
+## Development Commands
+
+**Start local dependencies (PostgreSQL + Redis):**
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+**API development (from repo root or /api):**
+```bash
+npm run dev:api          # hot-reload via ts-node-dev, loads ../.env
+cd api && npm run dev    # same, from inside /api
+```
+
+**Build:**
+```bash
+npm run build:api        # from root
+cd api && npm run build  # TypeScript → dist/
+```
+
+**Tests — Vitest (TypeScript natif, découverte automatique) :**
+```bash
+cd api && npm test                                              # run once
+cd api && npm run test:watch                                   # watch mode
+cd api && npx vitest run src/__tests__/routes/auth.test.ts    # single file
+```
+`NODE_ENV=test` et `BCRYPT_ROUNDS=1` sont injectés par `vitest.config.ts`. Le helper `api/src/__tests__/helpers/build.ts` crée une instance Fastify en mémoire avec une paire RSA 2048 bits de test ; `helpers/prisma.ts` fournit une factory de mock Prisma.
+
+**Database:**
+```bash
+cd api && npm run db:migrate    # prisma migrate dev
+cd api && npm run db:generate   # regenerate Prisma client after schema changes
+cd api && npm run db:studio     # Prisma Studio GUI
+```
+
+**Environment:** copy `.env.example` → `.env` at repo root. `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` are auto-generated at startup in dev if absent (a warning is printed); they must be set explicitly in production.
 
 ## Tech Stack
 
@@ -84,10 +118,19 @@ Port allocation range: **10000–60000**, tracked in the `ports` table.
 - Porkbun API keys are environment variables on the host, never committed.
 - Every deployed project container runs as non-root.
 
+## API Architecture (`/api/src/`)
+
+- **`app.ts`** — Fastify app builder; registers plugins (cors, cookies, prisma, jwt) and mounts routes (`/health`, `/auth`)
+- **`index.ts`** — entry point; binds to `0.0.0.0:3001`
+- **`plugins/jwt.ts`** — RS256 access tokens (15 min) via `jsonwebtoken`; HS256 refresh tokens (7 days) stored as httpOnly `refresh_token` cookie; auto-generates ephemeral RSA keypair in dev
+- **`plugins/prisma.ts`** — singleton PrismaClient decorated onto Fastify instance
+- **`routes/auth/`** — register, login, refresh, logout, GitLab OAuth2 (`/auth/gitlab` + callback); schemas in `schemas.ts` (Zod)
+- **`middleware/authenticate.ts`** — Bearer token extractor; throws 401 on missing/invalid/expired token; decorate protected routes with `{ preHandler: [authenticate] }`
+
 ## Development Roadmap
 
 - **Phase 1 — Infrastructure** ✅ Validated in production
-- **Phase 2 — Authentication** — monorepo init, Prisma schema, JWT + GitLab OAuth2
+- **Phase 2 — Authentication** ✅ monorepo init, Prisma schema, JWT + GitLab OAuth2
 - **Phase 3 — Static Sites** — project CRUD, file upload, Nginx container per project
 - **Phase 4 — GitLab Build Pipeline** — Nixpacks, blue/green, real-time WebSocket logs
 - **Phase 5 — Auto CI/CD** — GitLab push webhooks, BullMQ async jobs
