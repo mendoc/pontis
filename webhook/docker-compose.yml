@@ -10,7 +10,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}   # vide = dépôts publics seulement
       PATHS_CONFIG: /config/paths.json  # chemin fixe dans le conteneur
     volumes:
-      - ${APPS_DIR}:/apps
+      - ${PONTIS_ROOT}:${PONTIS_ROOT}
       - /var/run/docker.sock:/var/run/docker.sock
       - ${PATHS_CONFIG_FILE:-/dev/null}:/config/paths.json:ro
     networks:
