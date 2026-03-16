@@ -2,8 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Box, Flex, Heading, Text, TextField, Button, Separator } from '@radix-ui/themes'
+import { useRouter } from 'next/navigation'
+import { Box, Flex, Heading, Text, TextField, Button, Separator, Callout } from '@radix-ui/themes'
 import { EyeOpenIcon, EyeClosedIcon } from '@radix-ui/react-icons'
+import { useAuth } from '@/app/context/auth'
 
 function GitLabIcon() {
   return (
@@ -20,7 +22,28 @@ function GitLabIcon() {
 }
 
 export default function LoginPage() {
+  const router = useRouter()
+  const { login } = useAuth()
+
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsLoading(true)
+    try {
+      await login(email, password)
+      router.push('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <Flex
@@ -65,9 +88,16 @@ export default function LoginPage() {
             <Separator style={{ flex: 1 }} />
           </Flex>
 
+          {/* Message d'erreur */}
+          {error && (
+            <Callout.Root color="red" size="1">
+              <Callout.Text>{error}</Callout.Text>
+            </Callout.Root>
+          )}
+
           {/* Formulaire email/mot de passe */}
           <Flex asChild direction="column" gap="4">
-            <form onSubmit={(e) => e.preventDefault()}>
+            <form onSubmit={handleSubmit}>
               <Flex direction="column" gap="1">
                 <Text as="label" size="2" weight="medium" htmlFor="email">
                   Adresse e-mail
@@ -78,6 +108,9 @@ export default function LoginPage() {
                   placeholder="vous@exemple.com"
                   autoComplete="email"
                   size="2"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </Flex>
 
@@ -91,6 +124,9 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   size="2"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 >
                   <TextField.Slot side="right">
                     <button
@@ -120,8 +156,9 @@ export default function LoginPage() {
                 color="gray"
                 highContrast
                 style={{ width: '100%', cursor: 'pointer' }}
+                disabled={isLoading}
               >
-                Se connecter
+                {isLoading ? 'Connexion…' : 'Se connecter'}
               </Button>
             </form>
           </Flex>
