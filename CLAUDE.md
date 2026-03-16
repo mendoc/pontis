@@ -2,153 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Commandes de développement
 
-Pontis is a self-hosted PaaS (Platform as a Service) — a Netlify/Vercel/Heroku alternative with full sovereignty over data, infrastructure, and costs. Every project is deployed as its own Docker container, reachable at `<slug>.app.ongoua.pro` with automatic HTTPS via Let's Encrypt DNS-01.
-
-**Current status:** Phase 2 (authentication + monorepo) is complete. Phase 3 (Static Sites) is next.
-
-## Monorepo Structure
-
-```
-/api      — Fastify backend (Node.js 20), port 3001  ✅ implemented
-/webhook  — GitHub webhook receiver (Node.js, no deps), port 9000  ✅ implemented
-/web      — Next.js 14 dashboard (App Router + Tailwind CSS)  🔜 planned
-/worker   — BullMQ background worker (build jobs)  🔜 planned
-```
-
-## Development Commands
-
-**Start local dependencies (PostgreSQL + Redis):**
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+npm run dev        # Serveur de développement (port 3000)
+npm run build      # Build de production
+npm start          # Serveur de production
+npm run type-check # Vérification TypeScript (tsc --noEmit)
 ```
 
-**API development (from repo root or /api):**
-```bash
-npm run dev:api          # hot-reload via ts-node-dev, loads ../.env
-cd api && npm run dev    # same, from inside /api
-```
-
-**Build:**
-```bash
-npm run build:api        # from root
-cd api && npm run build  # TypeScript → dist/
-```
-
-**Tests — Vitest (TypeScript natif, découverte automatique) :**
-```bash
-cd api && npm test                                              # run once
-cd api && npm run test:watch                                   # watch mode
-cd api && npx vitest run src/__tests__/routes/auth.test.ts    # single file
-```
-`NODE_ENV=test` et `BCRYPT_ROUNDS=1` sont injectés par `vitest.config.ts`. Le helper `api/src/__tests__/helpers/build.ts` crée une instance Fastify en mémoire avec une paire RSA 2048 bits de test ; `helpers/prisma.ts` fournit une factory de mock Prisma.
-
-**Database:**
-```bash
-cd api && npm run db:migrate    # prisma migrate dev
-cd api && npm run db:generate   # regenerate Prisma client after schema changes
-cd api && npm run db:studio     # Prisma Studio GUI
-```
-
-**Environment:** copy `.env.example` → `.env` at repo root. `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` are auto-generated at startup in dev if absent (a warning is printed); they must be set explicitly in production.
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14 (App Router) + Tailwind CSS |
-| Backend API | Node.js 20 + Fastify + Zod |
-| Database | PostgreSQL 16 + Prisma ORM |
-| Cache & Queues | Redis 7 + BullMQ |
-| Containers | Docker Engine 29.x + Docker SDK (node) |
-| Reverse Proxy | Traefik v3 (dynamic config via Docker labels) |
-| SSL | Let's Encrypt wildcard via ACME DNS-01 (Porkbun) |
-| Auth | Passport.js (OAuth2 GitLab CE) + JWT RS256 (email/password) |
-| Build detection | Nixpacks |
+Aucun framework de test ni linter n'est configuré pour ce package.
 
 ## Architecture
 
-All services (Pontis internals + every deployed user app) share a single Docker bridge network named `pontis_network`. This network is created once by the main Pontis Docker Compose and referenced as `external: true` by each deployed app's compose file.
+**Pontis Web** est le frontend d'une plateforme PaaS auto-hébergée (alternative à Netlify/Vercel). Ce dépôt est autonome et se déploie indépendamment des autres services Pontis (`api`, `webhook`, `docs`).
 
-**Core services (main docker-compose.yml):**
-- `traefik` — only component exposed to the internet (ports 80/443); routes traffic to all containers via Docker labels; handles Let's Encrypt DNS-01 via Porkbun API
-- `api` — Fastify backend; has access to `/var/run/docker.sock` (read-only) to manage containers
-- `postgres` — internal only, never exposed via Traefik
-- `redis` — internal only
+**Stack :** Next.js 15 (App Router) · React 19 · TypeScript strict · Radix UI Themes v3
 
-**Deployed app pattern** (generated per project by the worker):
-```
-projet-slug/
-├── docker-compose.yml   # service always named "app", Traefik labels carry the slug
-├── Dockerfile
-└── server.js            # or other entrypoint
-```
+## Structure & conventions
 
-Traefik label uniqueness is enforced by slug (stored in PostgreSQL), not by the Docker service name.
+- **App Router** (`app/`) avec route groups : `(auth)` regroupe les pages d'authentification sans affecter les URLs.
+- **Alias de chemin :** `@/*` → racine du projet (`./`).
+- **Proxy API :** Next.js redirige `/api/*` vers `INTERNAL_API_URL` (défaut : `http://localhost:3001`) via `next.config.ts`.
+- **Thème :** Radix UI `<Theme>` avec accent `gray`, radius `none`, mode sombre automatique (détection système via script inline dans `layout.tsx`).
+- **Langue :** HTML `lang="fr"`, contenu majoritairement en français.
 
-## Data Model
+## Déploiement
 
-| Table | Key fields |
-|---|---|
-| `users` | id, email, password_hash, gitlab_id, gitlab_token, created_at |
-| `projects` | id, user_id, name, slug, type (git\|static), domain, port, status |
-| `deployments` | id, project_id, commit_sha, status (pending\|building\|success\|failed), logs, created_at |
-| `env_vars` | id, project_id, key, value_encrypted |
-| `ports` | id, port_number, project_id, allocated_at |
-
-Port allocation range: **10000–60000**, tracked in the `ports` table.
-
-## Build Pipeline
-
-1. Clone repo from GitLab CE via API
-2. Nixpacks detects runtime (package.json, requirements.txt, etc.)
-3. Build Docker image
-4. Push to local Docker registry (`registry.local/<slug>:<commit-sha>`)
-5. Blue/green deployment + Traefik label switch
-
-**Blue/green sequence:** start new container on port N+1 → poll `/health` for HTTP 200 (30s timeout) → switch Traefik labels → stop old container. On timeout: rollback, mark deployment `failed`.
-
-## Security Invariants
-
-- **Never** mount `/var/run/docker.sock` in user project containers — only Traefik and the Pontis API worker get this mount.
-- `exposedByDefault: false` in traefik.yml — only containers with `traefik.enable=true` label are routed.
-- PostgreSQL and Redis are on `pontis_network` only, no Traefik labels, never reachable from outside.
-- JWT: RS256, access token 15 min, refresh token 7 days (httpOnly/Secure cookie).
-- User env vars: encrypted AES-256-GCM before storing in database; injected at container start via `--env-file`; never logged or shown in UI after entry.
-- Porkbun API keys are environment variables on the host, never committed.
-- Every deployed project container runs as non-root.
-
-## Webhook Service (`/webhook/`)
-
-Minimal GitHub webhook receiver — zero external dependencies, pure Node.js stdlib.
-
-- **Route:** `POST /deploy/:slug` — verifies `X-Hub-Signature-256` HMAC-SHA256, ignores non-default-branch pushes, then runs `docker compose pull` + `docker compose up -d` + `docker image prune -f` against `$APPS_DIR/<slug>/docker-compose.yml`.
-- **Concurrency guard:** one deploy at a time per slug (in-memory `Set`); duplicate pushes are silently skipped.
-- **Required env vars:** `GITHUB_WEBHOOK_SECRET`, `APPS_DIR` (path to the directory containing per-app subdirs).
-- **Run:** `node server.js` (no build step). Deployed via its own `docker-compose.yml` in `/webhook/`.
-
-## API Architecture (`/api/src/`)
-
-- **`app.ts`** — Fastify app builder; registers plugins (cors, cookies, prisma, jwt) and mounts routes (`/health`, `/auth`)
-- **`index.ts`** — entry point; binds to `0.0.0.0:3001`
-- **`plugins/jwt.ts`** — RS256 access tokens (15 min) via `jsonwebtoken`; HS256 refresh tokens (7 days) stored as httpOnly `refresh_token` cookie; auto-generates ephemeral RSA keypair in dev
-- **`plugins/prisma.ts`** — singleton PrismaClient decorated onto Fastify instance
-- **`routes/auth/`** — register, login, refresh, logout, GitLab OAuth2 (`/auth/gitlab` + callback); schemas in `schemas.ts` (Zod)
-- **`middleware/authenticate.ts`** — Bearer token extractor; throws 401 on missing/invalid/expired token; decorate protected routes with `{ preHandler: [authenticate] }`
-
-## Development Roadmap
-
-- **Phase 1 — Infrastructure** ✅ Validated in production
-- **Phase 2 — Authentication** ✅ monorepo init, Prisma schema, JWT + GitLab OAuth2
-- **Phase 3 — Static Sites** — project CRUD, file upload, Nginx container per project
-- **Phase 4 — GitLab Build Pipeline** — Nixpacks, blue/green, real-time WebSocket logs
-- **Phase 5 — Auto CI/CD** — GitLab push webhooks, BullMQ async jobs
-- **Phase 6 — Observability** — container logs/metrics from dashboard, rollback
-
-## Production Environment
-
-- OS: Debian 6.1.0-43-cloud-amd64
-- Docker: Engine 29.3.0
-- Domain: `*.app.ongoua.pro` — single wildcard DNS A record (Porkbun) pointing to server IP
-- SSL: wildcard cert requires DNS-01 challenge (HTTP-01 cannot issue wildcards)
+- **Output Next.js :** `standalone` — le build génère un dossier `.next/standalone` auto-suffisant.
+- **Docker :** build multi-stage (deps → builder → runner), utilisateur non-root `nextjs`, port 3000.
+- **Production :** `docker-compose.yml` avec Traefik (domaine `pontis.ongoua.pro`, TLS).
+- **Variable d'environnement clé :** `INTERNAL_API_URL` pour pointer vers le backend.
