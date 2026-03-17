@@ -190,8 +190,9 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { email } = useAuth()
-  const initial = email ? email[0].toUpperCase() : '?'
+  const { email, name } = useAuth()
+  const displayName = name ?? email
+  const initial = displayName ? displayName[0].toUpperCase() : '?'
 
   return (
     <Flex
@@ -212,7 +213,7 @@ function Topbar() {
           Projets
         </Text>
       </Flex>
-      {email && (
+      {displayName && (
         <Flex align="center" gap="2">
           <Box
             style={{
@@ -231,7 +232,7 @@ function Topbar() {
             </Text>
           </Box>
           <Text size="2" style={{ color: 'var(--gray-11)' }}>
-            {email}
+            {displayName}
           </Text>
         </Flex>
       )}
