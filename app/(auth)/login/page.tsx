@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Box, Flex, Heading, Text, TextField, Button, Separator, Callout } from '@radix-ui/themes'
@@ -21,9 +21,21 @@ function GitLabIcon() {
   )
 }
 
+function SearchParamsError({ onError }: { onError: (msg: string) => void }) {
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'gitlab_denied') {
+      onError('Connexion GitLab annulée.')
+    } else if (errorParam) {
+      onError('Une erreur est survenue lors de la connexion.')
+    }
+  }, [searchParams, onError])
+  return null
+}
+
 export default function LoginPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { login } = useAuth()
 
   const [email, setEmail] = useState('')
@@ -31,15 +43,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  useEffect(() => {
-    const errorParam = searchParams.get('error')
-    if (errorParam === 'gitlab_denied') {
-      setError('Connexion GitLab annulée.')
-    } else if (errorParam) {
-      setError('Une erreur est survenue lors de la connexion.')
-    }
-  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -97,6 +100,11 @@ export default function LoginPage() {
             <Text size="1" color="gray">ou</Text>
             <Separator style={{ flex: 1 }} />
           </Flex>
+
+          {/* Erreur depuis les paramètres URL (ex: SSO annulé) */}
+          <Suspense>
+            <SearchParamsError onError={setError} />
+          </Suspense>
 
           {/* Message d'erreur */}
           {error && (
