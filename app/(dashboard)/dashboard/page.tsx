@@ -1,4 +1,7 @@
+import type { Metadata } from 'next'
 import { Box, Flex, Heading, Text } from '@radix-ui/themes'
+
+export const metadata: Metadata = { title: 'Dashboard — Pontis' }
 
 export default function DashboardPage() {
   return (
