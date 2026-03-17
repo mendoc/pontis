@@ -13,6 +13,13 @@ function isPublic(pathname: string) {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (pathname.startsWith('/api/')) {
+    const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+    const target = new URL(pathname + request.nextUrl.search, apiBase)
+    return NextResponse.rewrite(target)
+  }
+
   const hasRefreshToken = request.cookies.has('refresh_token')
 
   if (!hasRefreshToken && !isPublic(pathname)) {
