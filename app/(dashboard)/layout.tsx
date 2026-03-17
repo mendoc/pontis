@@ -15,6 +15,7 @@ import {
   ExitIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
+import { ProjectsProvider } from '@/app/context/projects'
 
 interface NavItem {
   label: string
@@ -247,7 +248,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Topbar />
         <main style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
-          {children}
+          <ProjectsProvider>{children}</ProjectsProvider>
         </main>
       </div>
     </div>

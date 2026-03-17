@@ -60,8 +60,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
+        // Erreur réseau (API indisponible) : ne pas rediriger, le cookie reste valide
         setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
-        if (!isPublicPath) window.location.replace('/login')
       })
       .finally(() => {
         inflightRefresh.current = null
