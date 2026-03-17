@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Box, Flex, Heading, Text, TextField, Button, Separator, Callout } from '@radix-ui/themes'
 import { EyeOpenIcon, EyeClosedIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
@@ -23,6 +23,7 @@ function GitLabIcon() {
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useAuth()
 
   const [email, setEmail] = useState('')
@@ -30,6 +31,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'gitlab_denied') {
+      setError('Connexion GitLab annulée.')
+    } else if (errorParam) {
+      setError('Une erreur est survenue lors de la connexion.')
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
