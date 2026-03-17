@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/register', '/legal']
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/legal']
 
 function isPublic(pathname: string) {
   return (

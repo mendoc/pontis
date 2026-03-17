@@ -190,7 +190,7 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { email, isLoading } = useAuth()
+  const { email } = useAuth()
   const initial = email ? email[0].toUpperCase() : '?'
 
   return (
@@ -212,7 +212,7 @@ function Topbar() {
           Projets
         </Text>
       </Flex>
-      {!isLoading && (
+      {email && (
         <Flex align="center" gap="2">
           <Box
             style={{

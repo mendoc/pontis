@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 
 interface AuthState {
   accessToken: string | null
@@ -12,6 +12,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string) => Promise<void>
+  resetPassword: (email: string, code: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
 }
@@ -34,22 +35,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: null,
     isLoading: true,
   })
+  const inflightRefresh = useRef<Promise<void> | null>(null)
+  const initialized = useRef(false)
 
-  const refreshSession = async () => {
-    try {
-      const res = await fetch('/api/v1/auth/refresh', { method: 'POST' })
-      if (res.ok) {
-        const data = await res.json()
-        setState({ accessToken: data.accessToken, userId: data.userId ?? null, email: decodeJwtEmail(data.accessToken), isLoading: false })
-      } else {
+  const refreshSession = (): Promise<void> => {
+    if (inflightRefresh.current) return inflightRefresh.current
+
+    inflightRefresh.current = fetch('/api/v1/auth/refresh', { method: 'POST' })
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json()
+          setState({ accessToken: data.accessToken, userId: data.userId ?? null, email: decodeJwtEmail(data.accessToken), isLoading: false })
+        } else {
+          setState({ accessToken: null, userId: null, email: null, isLoading: false })
+        }
+      })
+      .catch(() => {
         setState({ accessToken: null, userId: null, email: null, isLoading: false })
-      }
-    } catch {
-      setState({ accessToken: null, userId: null, email: null, isLoading: false })
-    }
+      })
+      .finally(() => {
+        inflightRefresh.current = null
+      })
+
+    return inflightRefresh.current
   }
 
   useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
     refreshSession()
   }, [])
 
@@ -88,13 +101,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ accessToken: data.accessToken, userId: data.userId, email: decodeJwtEmail(data.accessToken), isLoading: false })
   }
 
+  const resetPassword = async (email: string, code: string, password: string) => {
+    const res = await fetch('/api/v1/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, password }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Une erreur est survenue')
+    }
+    const data = await res.json()
+    setState({ accessToken: data.accessToken, userId: data.userId, email: decodeJwtEmail(data.accessToken), isLoading: false })
+  }
+
   const logout = async () => {
     await fetch('/api/v1/auth/logout').catch(() => null)
     setState({ accessToken: null, userId: null, email: null, isLoading: false })
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, refreshSession }}>
+    <AuthContext.Provider value={{ ...state, login, register, resetPassword, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   )
