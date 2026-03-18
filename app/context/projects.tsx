@@ -17,6 +17,7 @@ interface ProjectsContextValue {
   fetchProjects: () => Promise<Project[]>
   getProject: (id: string) => Promise<Project>
   createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
+  redeployProject: (id: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
   renameProject: (id: string, name: string) => Promise<Project>
   startProject: (id: string) => Promise<Project>
   stopProject: (id: string) => Promise<Project>
@@ -47,6 +48,39 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     })
     if (!res.ok) throw new Error('Projet introuvable')
     return res.json()
+  }
+
+  const redeployProject = async (id: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
+    const CHUNK_SIZE = 5 * 1024 * 1024
+    const authHeader = { Authorization: `Bearer ${accessToken}` }
+
+    const initRes = await fetch('/api/v1/projects/upload/init', { method: 'POST', headers: authHeader })
+    if (!initRes.ok) throw new Error('Erreur lors de l\'initialisation du transfert')
+    const { uploadId } = await initRes.json()
+
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    for (let i = 0; i < totalChunks; i++) {
+      const form = new FormData()
+      form.append('uploadId', uploadId)
+      form.append('chunkIndex', String(i))
+      form.append('chunk', file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
+      const chunkRes = await fetch('/api/v1/projects/upload/chunk', { method: 'POST', headers: authHeader, body: form })
+      if (!chunkRes.ok) throw new Error(`Erreur lors du transfert du bloc ${i + 1}`)
+      onProgress?.(Math.round(((i + 1) / totalChunks) * 100))
+    }
+
+    const finalRes = await fetch('/api/v1/projects/upload/redeploy', {
+      method: 'POST',
+      headers: { ...authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: id, uploadId, totalChunks }),
+    })
+
+    if (!finalRes.ok) {
+      const data = await finalRes.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors du redéploiement')
+    }
+
+    return finalRes.json()
   }
 
   const renameProject = async (id: string, name: string): Promise<Project> => {
@@ -158,7 +192,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, renameProject, startProject, stopProject, restartProject, checkSlug }}>
+    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug }}>
       {children}
     </ProjectsContext.Provider>
   )

@@ -94,14 +94,21 @@ function RenameField({ initialName, onSave }: { initialName: string; onSave: (na
   )
 }
 
-function RedeployZone() {
+function RedeployZone({ projectId }: { projectId: string }) {
+  const { redeployProject, getProject } = useProjects()
   const [file, setFile] = useState<File | null>(null)
+  const [phase, setPhase] = useState<'idle' | 'uploading' | 'building'>('idle')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (!selected || !selected.name.endsWith('.zip')) return
     setFile(selected)
+    setError(null)
+    setSuccess(false)
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -109,17 +116,52 @@ function RedeployZone() {
     const dropped = e.dataTransfer.files[0]
     if (!dropped || !dropped.name.endsWith('.zip')) return
     setFile(dropped)
+    setError(null)
+    setSuccess(false)
   }
+
+  const handleRedeploy = async () => {
+    if (!file) return
+    setError(null)
+    setSuccess(false)
+    setPhase('uploading')
+    setUploadProgress(0)
+    try {
+      const project = await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
+
+      setPhase('building')
+      let status = project.status
+      while (status === 'building') {
+        await new Promise((r) => setTimeout(r, 2000))
+        const updated = await getProject(projectId)
+        status = updated.status
+      }
+
+      if (status === 'failed') {
+        setError('Le build a échoué. Vérifiez votre archive ZIP.')
+        return
+      }
+
+      setSuccess(true)
+      setFile(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors du redéploiement')
+    } finally {
+      setPhase('idle')
+    }
+  }
+
+  const isActive = phase !== 'idle'
 
   return (
     <Flex direction="column" gap="3">
       <Flex
         align="center" justify="center" direction="column" gap="2"
         onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !isActive && fileInputRef.current?.click()}
         style={{
           border: `2px dashed ${file ? 'var(--green-8)' : 'var(--gray-6)'}`,
-          borderRadius: 6, padding: '20px 16px', cursor: 'pointer',
+          borderRadius: 6, padding: '20px 16px', cursor: isActive ? 'default' : 'pointer',
           backgroundColor: file ? 'var(--green-2)' : undefined,
           transition: 'border-color 0.15s, background-color 0.15s',
         }}
@@ -129,12 +171,34 @@ function RedeployZone() {
         ) : (
           <>
             <UploadIcon style={{ color: 'var(--gray-8)' }} />
-            <Text size="2" style={{ color: 'var(--gray-10)' }}>Glissez un .zip ou cliquez</Text>
+            <Text size="2" style={{ color: 'var(--gray-10)' }}>Glissez un .zip ou cliquez <Text size="1" style={{ color: 'var(--gray-9)' }}>(max 50 Mo)</Text></Text>
           </>
         )}
       </Flex>
       <input ref={fileInputRef} type="file" accept=".zip" style={{ display: 'none' }} onChange={handleFileChange} />
-      <Button size="3" variant="solid" color="gray" highContrast disabled={!file} style={{ cursor: file ? 'pointer' : 'not-allowed', alignSelf: 'flex-start' }}>
+
+      {phase === 'uploading' && (
+        <Flex direction="column" gap="1">
+          <Text size="2" style={{ color: 'var(--gray-10)' }}>Téléversement… {uploadProgress}%</Text>
+          <Box style={{ height: 6, background: 'var(--gray-4)', borderRadius: 3, overflow: 'hidden' }}>
+            <Box style={{ height: '100%', width: `${uploadProgress}%`, background: 'var(--gray-9)', transition: 'width 0.2s' }} />
+          </Box>
+        </Flex>
+      )}
+
+      {phase === 'building' && (
+        <Text size="2" style={{ color: 'var(--gray-10)' }}>Build en cours…</Text>
+      )}
+
+      {error && <Text size="2" style={{ color: 'var(--red-10)' }}>{error}</Text>}
+      {success && <Text size="2" style={{ color: 'var(--green-10)' }}>Redéploiement réussi.</Text>}
+
+      <Button
+        size="3" variant="solid" color="gray" highContrast
+        disabled={!file || isActive}
+        style={{ cursor: file && !isActive ? 'pointer' : 'not-allowed', alignSelf: 'flex-start' }}
+        onClick={handleRedeploy}
+      >
         Lancer le redéploiement
       </Button>
     </Flex>
@@ -280,7 +344,7 @@ export default function ProjectSettingsPage() {
         <Text size="3" style={{ color: 'var(--gray-9)' }}>
           Uploadez une nouvelle archive pour mettre à jour le site sans créer un nouveau projet.
         </Text>
-        <RedeployZone />
+        <RedeployZone projectId={id} />
       </Flex>
 
       <Separator size="4" my="6" />
