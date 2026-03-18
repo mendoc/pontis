@@ -4,18 +4,21 @@ import { useRouter, usePathname } from 'next/navigation'
 import { Box, Flex, Text, Heading, Button } from '@radix-ui/themes'
 import {
   LayersIcon,
-  ComponentInstanceIcon,
-  ArchiveIcon,
-  ActivityLogIcon,
-  CubeIcon,
+  PersonIcon,
   BellIcon,
-  Link1Icon,
-  CardStackIcon,
+  ChatBubbleIcon,
   GearIcon,
+  RocketIcon,
+  ReaderIcon,
+  DesktopIcon,
+  MixerHorizontalIcon,
   ExitIcon,
+  SunIcon,
+  MoonIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { ProjectsProvider } from '@/app/context/projects'
+import { useThemeMode } from '@/app/components/ThemeProvider'
 
 interface NavItem {
   label: string
@@ -23,44 +26,25 @@ interface NavItem {
   href: string
 }
 
-interface NavSection {
-  title?: string
-  items: NavItem[]
-}
-
-const navSections: NavSection[] = [
-  {
-    items: [
-      { label: 'Projets', icon: <LayersIcon />, href: '/dashboard' },
-      { label: 'Blueprints', icon: <ComponentInstanceIcon />, href: '/blueprints' },
-      { label: "Groupes d'environnement", icon: <ArchiveIcon />, href: '/environments' },
-    ],
-  },
-  {
-    title: 'INTÉGRATIONS',
-    items: [
-      { label: 'Observabilité', icon: <ActivityLogIcon />, href: '/observability' },
-      { label: 'Webhooks', icon: <CubeIcon />, href: '/webhooks' },
-      { label: 'Notifications', icon: <BellIcon />, href: '/notifications' },
-    ],
-  },
-  {
-    title: 'RÉSEAU',
-    items: [
-      { label: 'Liens privés', icon: <Link1Icon />, href: '/private-links' },
-    ],
-  },
-  {
-    title: 'WORKSPACE',
-    items: [
-      { label: 'Facturation', icon: <CardStackIcon />, href: '/billing' },
-      { label: 'Paramètres', icon: <GearIcon />, href: '/settings' },
-    ],
-  },
+const globalNavItems: NavItem[] = [
+  { label: 'Projets', icon: <LayersIcon />, href: '/dashboard' },
 ]
 
+const accountNavItems: NavItem[] = [
+  { label: 'Mon profil', icon: <PersonIcon />, href: '/profile' },
+  { label: 'Feedback', icon: <ChatBubbleIcon />, href: '/feedback' },
+]
 
-function NavButton({ item, isActive, onClick, marginBottom }: { item: NavItem; isActive: boolean; onClick: () => void; marginBottom?: number }) {
+const getProjectNavItems = (projectId: string): NavItem[] => [
+  { label: 'Configuration', icon: <GearIcon />, href: `/projects/${projectId}/settings` },
+  { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments` },
+  { label: 'Logs', icon: <ReaderIcon />, href: `/projects/${projectId}/logs` },
+  { label: 'Terminal', icon: <DesktopIcon />, href: `/projects/${projectId}/terminal` },
+  { label: "Variables d'env", icon: <MixerHorizontalIcon />, href: `/projects/${projectId}/env` },
+  { label: 'Notifications', icon: <BellIcon />, href: `/projects/${projectId}/notifications` },
+]
+
+function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick: () => void }) {
   return (
     <Button
       variant="ghost"
@@ -75,7 +59,6 @@ function NavButton({ item, isActive, onClick, marginBottom }: { item: NavItem; i
         paddingRight: 8,
         borderRadius: 4,
         backgroundColor: isActive ? 'var(--gray-4)' : undefined,
-        marginBottom,
       }}
       onClick={onClick}
     >
@@ -91,10 +74,50 @@ function NavButton({ item, isActive, onClick, marginBottom }: { item: NavItem; i
   )
 }
 
+function NavSection({ title, items, pathname, router }: {
+  title?: string
+  items: NavItem[]
+  pathname: string
+  router: ReturnType<typeof useRouter>
+}) {
+  return (
+    <Box>
+      {title && (
+        <Text
+          style={{
+            display: 'block',
+            paddingLeft: 16,
+            marginBottom: 6,
+            color: 'var(--gray-9)',
+            fontSize: 11,
+            letterSpacing: '0.05em',
+            fontWeight: 500,
+          }}
+        >
+          {title}
+        </Text>
+      )}
+      <Flex direction="column" style={{ gap: 10 }}>
+        {items.map((item) => (
+          <NavButton
+            key={item.href}
+            item={item}
+            isActive={pathname === item.href || pathname.startsWith(item.href + '/')}
+            onClick={() => router.push(item.href)}
+          />
+        ))}
+      </Flex>
+    </Box>
+  )
+}
+
 function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const { logout } = useAuth()
+
+  const projectMatch = pathname.match(/^\/projects\/([^/]+)/)
+  const currentProjectId = projectMatch?.[1] !== 'new' ? projectMatch?.[1] : undefined
 
   const handleLogout = async () => {
     await logout()
@@ -107,16 +130,16 @@ function Sidebar() {
         width: 256,
         flexShrink: 0,
         height: '100vh',
-        backgroundColor: 'var(--color-panel-solid)',
+        backgroundColor: 'var(--color-background)',
         borderRight: '1px solid var(--gray-4)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}
     >
-      {/* Zone scrollable : titre + nav */}
+      {/* Zone scrollable */}
       <Box style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 8px 0' }}>
-        {/* Titre */}
+        {/* Logo */}
         <Heading
           size="4"
           style={{ paddingLeft: 16, marginBottom: 24, color: 'var(--gray-12)', display: 'block' }}
@@ -124,47 +147,31 @@ function Sidebar() {
           Pontis
         </Heading>
 
-        {/* Navigation principale */}
-        {navSections.map((section, i) => (
-          <Box key={i} style={{ marginTop: i > 0 ? 20 : 0 }}>
-            {section.title && (
-              <Text
-                style={{
-                  display: 'block',
-                  paddingLeft: 16,
-                  marginBottom: 6,
-                  color: 'var(--gray-9)',
-                  fontSize: 11,
-                  letterSpacing: '0.05em',
-                  fontWeight: 500,
-                }}
-              >
-                {section.title}
-              </Text>
-            )}
-            <Flex direction="column" style={{ gap: 1 }}>
-              {section.items.map((item) => (
-                <NavButton
-                  key={item.href}
-                  item={item}
-                  isActive={pathname === item.href}
-                  onClick={() => router.push(item.href)}
-                  marginBottom={item.href === '/dashboard' ? 6 : undefined}
-                />
-              ))}
-            </Flex>
+        {/* Navigation globale */}
+        <NavSection items={globalNavItems} pathname={pathname} router={router} />
+
+        {/* Section projet — visible uniquement dans la vue détail */}
+        {currentProjectId && (
+          <Box style={{ marginTop: 20 }}>
+            <Box style={{ borderTop: '1px solid var(--gray-4)', marginBottom: 16 }} />
+            <NavSection
+              title="PROJET"
+              items={getProjectNavItems(currentProjectId)}
+              pathname={pathname}
+              router={router}
+            />
           </Box>
-        ))}
+        )}
+
+        {/* Compte */}
+        <Box style={{ marginTop: 20 }}>
+          <Box style={{ borderTop: '1px solid var(--gray-4)', marginBottom: 16 }} />
+          <NavSection title="COMPTE" items={accountNavItems} pathname={pathname} router={router} />
+        </Box>
       </Box>
 
       {/* Déconnexion — fixée en bas */}
-      <Box
-        style={{
-          borderTop: '1px solid var(--gray-4)',
-          padding: '8px 8px',
-          flexShrink: 0,
-        }}
-      >
+      <Box style={{ borderTop: '1px solid var(--gray-4)', padding: '8px 8px', flexShrink: 0 }}>
         <Button
           variant="ghost"
           color="red"
@@ -190,6 +197,34 @@ function Sidebar() {
   )
 }
 
+const THEME_MODES = ['system', 'light', 'dark'] as const
+
+function ThemeToggle() {
+  const { mode, setMode } = useThemeMode()
+
+  const cycle = () => {
+    const idx = THEME_MODES.indexOf(mode)
+    setMode(THEME_MODES[(idx + 1) % THEME_MODES.length])
+  }
+
+  const icon = mode === 'light' ? <SunIcon /> : mode === 'dark' ? <MoonIcon /> : <DesktopIcon />
+  const label = mode === 'light' ? 'Clair' : mode === 'dark' ? 'Sombre' : 'Système'
+
+  return (
+    <Button
+      variant="ghost"
+      color="gray"
+      size="2"
+      onClick={cycle}
+      style={{ cursor: 'pointer', gap: 6 }}
+      title={`Thème : ${label}`}
+    >
+      {icon}
+      <Text size="2" style={{ color: 'var(--gray-11)' }}>{label}</Text>
+    </Button>
+  )
+}
+
 function Topbar() {
   const { email, name } = useAuth()
   const displayName = name ?? email
@@ -208,35 +243,33 @@ function Topbar() {
         borderBottom: '1px solid var(--gray-4)',
       }}
     >
-      <Flex align="center" gap="2">
-        <LayersIcon style={{ color: 'var(--gray-9)' }} />
-        <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
-          Projets
-        </Text>
-      </Flex>
-      {displayName && (
-        <Flex align="center" gap="2">
-          <Box
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              backgroundColor: 'var(--gray-12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Text size="1" weight="bold" style={{ color: 'var(--gray-1)', lineHeight: 1 }}>
-              {initial}
+      <Box />
+      <Flex align="center" gap="6">
+        <ThemeToggle />
+        {displayName && (
+          <Flex align="center" gap="2">
+            <Box
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                backgroundColor: 'var(--gray-12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Text size="1" weight="bold" style={{ color: 'var(--gray-1)', lineHeight: 1 }}>
+                {initial}
+              </Text>
+            </Box>
+            <Text size="2" style={{ color: 'var(--gray-11)' }}>
+              {displayName}
             </Text>
-          </Box>
-          <Text size="2" style={{ color: 'var(--gray-11)' }}>
-            {displayName}
-          </Text>
-        </Flex>
-      )}
+          </Flex>
+        )}
+      </Flex>
     </Flex>
   )
 }

@@ -5,7 +5,7 @@ import './globals.css'
 
 export const metadata: Metadata = { title: 'Pontis' }
 
-const themeScript = `(function(){try{var d=document.documentElement,dark=window.matchMedia('(prefers-color-scheme: dark)').matches;if(dark)d.classList.add('dark');}catch(e){}})()`
+const themeScript = `(function(){try{var d=document.documentElement,s=localStorage.getItem('pontis-theme'),dark=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(dark)d.classList.add('dark');}catch(e){}})()`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

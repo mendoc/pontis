@@ -13,9 +13,10 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge color="gray" variant="soft">{status}</Badge>
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
   return (
     <Box
+      onClick={onClick}
       style={{
         border: '1px solid var(--gray-5)',
         borderRadius: 6,
@@ -23,7 +24,11 @@ function ProjectCard({ project }: { project: Project }) {
         backgroundColor: 'var(--color-panel-solid)',
         minWidth: 240,
         maxWidth: 320,
+        cursor: 'pointer',
+        transition: 'border-color 0.15s',
       }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gray-8)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--gray-5)')}
     >
       <Flex justify="between" align="start" mb="2">
         <Text size="3" weight="medium" style={{ color: 'var(--gray-12)' }}>
@@ -31,11 +36,12 @@ function ProjectCard({ project }: { project: Project }) {
         </Text>
         <StatusBadge status={project.status} />
       </Flex>
-{project.status === 'running' && project.domain && (
+      {project.status === 'running' && project.domain && (
         <a
           href={`https://${project.domain}`}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
           style={{ fontSize: 12, color: 'var(--accent-9)', textDecoration: 'none' }}
         >
           {project.domain} ↗
@@ -135,7 +141,11 @@ export default function DashboardPage() {
         ) : (
           <Flex wrap="wrap" gap="4">
             {projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onClick={() => router.push(`/projects/${project.id}/settings`)}
+              />
             ))}
           </Flex>
         )}
