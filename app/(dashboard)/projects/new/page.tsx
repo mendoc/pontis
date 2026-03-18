@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Flex, Heading, Text, TextField, Button } from '@radix-ui/themes'
+import { Box, Flex, Heading, Text, TextField, Button, Progress } from '@radix-ui/themes'
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { useProjects } from '@/app/context/projects'
 
@@ -22,6 +22,7 @@ export default function NewProjectPage() {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // État de la vérification du slug
@@ -113,8 +114,9 @@ export default function NewProjectPage() {
     }
 
     setSubmitting(true)
+    setUploadProgress(0)
     try {
-      await createProject(name.trim(), file)
+      await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
       router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
@@ -217,6 +219,15 @@ export default function NewProjectPage() {
           />
         </Box>
 
+        {submitting && (
+          <Box mb="4">
+            <Text size="1" color="gray" mb="1" style={{ display: 'block' }}>
+              {uploadProgress < 100 ? `Téléversement… ${uploadProgress}%` : 'Déploiement en cours…'}
+            </Text>
+            <Progress value={uploadProgress} />
+          </Box>
+        )}
+
         {error && (
           <Box mb="4">
             <Text size="2" style={{ color: 'var(--red-10)' }}>{error}</Text>
@@ -233,7 +244,9 @@ export default function NewProjectPage() {
             disabled={submitting || slug.length < 3 || slugStatus === 'taken' || slugStatus === 'checking'}
             style={{ cursor: submitting ? 'not-allowed' : 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }}
           >
-            {submitting ? 'Déploiement...' : 'Créer le projet'}
+            {submitting
+              ? (uploadProgress < 100 ? 'Téléversement…' : 'Déploiement…')
+              : 'Créer le projet'}
           </Button>
           <Button
             type="button"

@@ -13,7 +13,7 @@ export interface Project {
 
 interface ProjectsContextValue {
   fetchProjects: () => Promise<Project[]>
-  createProject: (name: string, file: File) => Promise<Project>
+  createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
   checkSlug: (slug: string) => Promise<{ available: boolean }>
 }
 
@@ -31,23 +31,47 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return res.json()
   }
 
-  const createProject = async (name: string, file: File): Promise<Project> => {
-    const formData = new FormData()
-    formData.append('name', name)
-    formData.append('file', file)
+  const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
+    const CHUNK_SIZE = 5 * 1024 * 1024
+    const authHeader = { Authorization: `Bearer ${accessToken}` }
 
-    const res = await fetch('/api/v1/projects', {
+    // 1. Init
+    const initRes = await fetch('/api/v1/projects/upload/init', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body: formData,
+      headers: authHeader,
+    })
+    if (!initRes.ok) throw new Error('Erreur lors de l\'initialisation du transfert')
+    const { uploadId } = await initRes.json()
+
+    // 2. Chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+    for (let i = 0; i < totalChunks; i++) {
+      const form = new FormData()
+      form.append('uploadId', uploadId)
+      form.append('chunkIndex', String(i))
+      form.append('chunk', file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
+      const chunkRes = await fetch('/api/v1/projects/upload/chunk', {
+        method: 'POST',
+        headers: authHeader,
+        body: form,
+      })
+      if (!chunkRes.ok) throw new Error(`Erreur lors du transfert du bloc ${i + 1}`)
+      onProgress?.(Math.round(((i + 1) / totalChunks) * 100))
+    }
+
+    // 3. Finalize
+    const finalRes = await fetch('/api/v1/projects/upload/finalize', {
+      method: 'POST',
+      headers: { ...authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, uploadId, totalChunks }),
     })
 
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
+    if (!finalRes.ok) {
+      const data = await finalRes.json().catch(() => ({}))
       throw new Error(data.error ?? 'Erreur lors de la création du projet')
     }
 
-    return res.json()
+    return finalRes.json()
   }
 
   const checkSlug = async (slug: string): Promise<{ available: boolean }> => {
