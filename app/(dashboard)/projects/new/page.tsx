@@ -197,55 +197,59 @@ export default function NewProjectPage() {
           )}
         </Box>
 
-        <Box mb="5">
-          <Flex align="baseline" justify="between" style={{ marginBottom: 6 }}>
-            <Text as="label" size="2" weight="medium" style={{ color: 'var(--gray-11)' }}>
-              Archive ZIP (dist, build, out…)
-            </Text>
-            <Text size="1" style={{ color: 'var(--gray-8)' }}>max 50 Mo</Text>
-          </Flex>
-
-          <Flex
-            align="center"
-            justify="center"
-            direction="column"
-            gap="2"
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: `2px dashed ${file ? 'var(--green-8)' : 'var(--gray-6)'}`,
-              borderRadius: 6,
-              padding: '24px 16px',
-              cursor: 'pointer',
-              backgroundColor: file ? 'var(--green-2)' : undefined,
-              transition: 'border-color 0.15s, background-color 0.15s',
-            }}
-          >
-            {file ? (
-              <Text size="2" style={{ color: 'var(--green-11)' }}>
-                {file.name} — {(file.size / 1024 / 1024).toFixed(2)} Mo
+        {slugStatus === 'available' && (
+          <Box mb="5">
+            <Flex align="baseline" justify="between" style={{ marginBottom: 6 }}>
+              <Text as="label" size="2" weight="medium" style={{ color: 'var(--gray-11)' }}>
+                Archive ZIP (dist, build, out…)
               </Text>
-            ) : (
-              <>
-                <Text size="2" style={{ color: 'var(--gray-10)' }}>
-                  Glissez un fichier .zip ici
-                </Text>
-                <Text size="1" style={{ color: 'var(--gray-8)' }}>
-                  ou cliquez pour sélectionner
-                </Text>
-              </>
-            )}
-          </Flex>
+              <Text size="1" style={{ color: 'var(--gray-8)' }}>max 50 Mo</Text>
+            </Flex>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
-        </Box>
+            <Flex
+              align="center"
+              justify="center"
+              direction="column"
+              gap="2"
+              onDrop={submitting ? undefined : handleDrop}
+              onDragOver={(e) => { if (!submitting) e.preventDefault() }}
+              onClick={() => { if (!submitting) fileInputRef.current?.click() }}
+              style={{
+                border: `2px dashed ${file ? 'var(--green-8)' : 'var(--gray-6)'}`,
+                borderRadius: 6,
+                padding: '24px 16px',
+                cursor: submitting ? 'default' : 'pointer',
+                backgroundColor: file ? 'var(--green-2)' : undefined,
+                transition: 'border-color 0.15s, background-color 0.15s',
+                opacity: submitting ? 0.5 : 1,
+              }}
+            >
+              {file ? (
+                <Text size="2" style={{ color: 'var(--green-11)' }}>
+                  {file.name} — {(file.size / 1024 / 1024).toFixed(2)} Mo
+                </Text>
+              ) : (
+                <>
+                  <Text size="2" style={{ color: 'var(--gray-10)' }}>
+                    Glissez un fichier .zip ici
+                  </Text>
+                  <Text size="1" style={{ color: 'var(--gray-8)' }}>
+                    ou cliquez pour sélectionner
+                  </Text>
+                </>
+              )}
+            </Flex>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              style={{ display: 'none' }}
+              disabled={submitting}
+              onChange={handleFileChange}
+            />
+          </Box>
+        )}
 
         {submitting && (
           <Box mb="4">
@@ -270,20 +274,22 @@ export default function NewProjectPage() {
         )}
 
         <Flex gap="3" align="center">
-          <Button
-            type="submit"
-            size="2"
-            variant="solid"
-            color="gray"
-            highContrast
-            disabled={submitting || slug.length < 3 || slugStatus === 'taken' || slugStatus === 'checking'}
-            style={{ cursor: submitting ? 'not-allowed' : 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }}
-          >
-            {phase === 'uploading' && 'Téléversement…'}
-            {phase === 'building' && 'Build en cours…'}
-            {phase === 'ssl' && 'Déploiement…'}
-            {phase === 'idle' && 'Créer le projet'}
-          </Button>
+          {slugStatus === 'available' && (
+            <Button
+              type="submit"
+              size="2"
+              variant="solid"
+              color="gray"
+              highContrast
+              disabled={submitting || !file}
+              style={{ cursor: submitting ? 'not-allowed' : 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }}
+            >
+              {phase === 'uploading' && 'Téléversement…'}
+              {phase === 'building' && 'Build en cours…'}
+              {phase === 'ssl' && 'Déploiement…'}
+              {phase === 'idle' && 'Créer le projet'}
+            </Button>
+          )}
           <Button
             type="button"
             size="2"

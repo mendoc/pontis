@@ -157,13 +157,15 @@ function RedeployZone({ projectId }: { projectId: string }) {
     <Flex direction="column" gap="3">
       <Flex
         align="center" justify="center" direction="column" gap="2"
-        onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}
+        onDrop={isActive ? undefined : handleDrop}
+        onDragOver={(e) => { if (!isActive) e.preventDefault() }}
         onClick={() => !isActive && fileInputRef.current?.click()}
         style={{
           border: `2px dashed ${file ? 'var(--green-8)' : 'var(--gray-6)'}`,
           borderRadius: 6, padding: '20px 16px', cursor: isActive ? 'default' : 'pointer',
           backgroundColor: file ? 'var(--green-2)' : undefined,
           transition: 'border-color 0.15s, background-color 0.15s',
+          opacity: isActive ? 0.5 : 1,
         }}
       >
         {file ? (
