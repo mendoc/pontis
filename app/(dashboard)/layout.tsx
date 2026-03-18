@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Box, Flex, Text, Heading, Button } from '@radix-ui/themes'
+import { Box, Flex, Text, Heading, Button, DropdownMenu } from '@radix-ui/themes'
 import {
   LayersIcon,
   PersonIcon,
@@ -15,9 +16,10 @@ import {
   ExitIcon,
   SunIcon,
   MoonIcon,
+  ChevronDownIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
-import { ProjectsProvider } from '@/app/context/projects'
+import { ProjectsProvider, useProjects, Project } from '@/app/context/projects'
 import { useThemeMode } from '@/app/components/ThemeProvider'
 
 interface NavItem {
@@ -225,9 +227,54 @@ function ThemeToggle() {
   )
 }
 
+function ProjectSwitcher() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const { fetchProjects } = useProjects()
+  const [projects, setProjects] = useState<Project[]>([])
+
+  const match = pathname.match(/^\/projects\/([^/]+)/)
+  const currentProjectId = match?.[1] !== 'new' ? match?.[1] : undefined
+
+  useEffect(() => {
+    if (!currentProjectId) return
+    fetchProjects().then(setProjects).catch(() => {})
+  }, [currentProjectId])
+
+  if (!currentProjectId) return null
+
+  const currentProject = projects.find((p) => p.id === currentProjectId)
+  const suffix = pathname.replace(/^\/projects\/[^/]+/, '') || '/settings'
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        <Button variant="ghost" color="gray" size="2" style={{ cursor: 'pointer', gap: 6 }}>
+          <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
+            {currentProject?.name ?? '…'}
+          </Text>
+          <ChevronDownIcon style={{ color: 'var(--gray-9)' }} />
+        </Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content>
+        {projects.map((p) => (
+          <DropdownMenu.Item
+            key={p.id}
+            onSelect={() => router.push(`/projects/${p.id}${suffix}`)}
+            style={{ fontWeight: p.id === currentProjectId ? 600 : undefined }}
+          >
+            {p.name}
+          </DropdownMenu.Item>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  )
+}
+
 function Topbar() {
   const { email, name } = useAuth()
-  const displayName = name ?? email
+  const rawName = name ?? email
+  const displayName = rawName?.includes('@') ? rawName.split('@')[0] : rawName
   const initial = displayName ? displayName[0].toUpperCase() : '?'
 
   return (
@@ -243,7 +290,7 @@ function Topbar() {
         borderBottom: '1px solid var(--gray-4)',
       }}
     >
-      <Box />
+      <Box><ProjectSwitcher /></Box>
       <Flex align="center" gap="6">
         <ThemeToggle />
         {displayName && (
@@ -276,14 +323,16 @@ function Topbar() {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar />
-        <main style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
-          <ProjectsProvider>{children}</ProjectsProvider>
-        </main>
+    <ProjectsProvider>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        <Sidebar />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Topbar />
+          <main style={{ flex: 1, overflowY: 'auto', padding: '32px 40px' }}>
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </ProjectsProvider>
   )
 }
