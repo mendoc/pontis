@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { useAuth } from './auth'
 
 export interface Project {
@@ -9,11 +9,18 @@ export interface Project {
   slug: string
   status: string
   domain: string | null
+  createdAt?: string
 }
 
 interface ProjectsContextValue {
+  projects: Project[]
   fetchProjects: () => Promise<Project[]>
+  getProject: (id: string) => Promise<Project>
   createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
+  renameProject: (id: string, name: string) => Promise<Project>
+  startProject: (id: string) => Promise<Project>
+  stopProject: (id: string) => Promise<Project>
+  restartProject: (id: string) => Promise<Project>
   checkSlug: (slug: string) => Promise<{ available: boolean }>
 }
 
@@ -21,6 +28,7 @@ const ProjectsContext = createContext<ProjectsContextValue | null>(null)
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const { accessToken, isLoading: authLoading } = useAuth()
+  const [projects, setProjects] = useState<Project[]>([])
 
   const fetchProjects = async (): Promise<Project[]> => {
     if (authLoading || !accessToken) throw new Error('Non authentifié')
@@ -28,7 +36,32 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
     if (!res.ok) throw new Error('Erreur lors du chargement des projets')
+    const data: Project[] = await res.json()
+    setProjects(data)
+    return data
+  }
+
+  const getProject = async (id: string): Promise<Project> => {
+    const res = await fetch(`/api/v1/projects/${id}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) throw new Error('Projet introuvable')
     return res.json()
+  }
+
+  const renameProject = async (id: string, name: string): Promise<Project> => {
+    const res = await fetch(`/api/v1/projects/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors du renommage')
+    }
+    const updated: Project = await res.json()
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, name: updated.name } : p)))
+    return updated
   }
 
   const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
@@ -74,6 +107,48 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return finalRes.json()
   }
 
+  const startProject = async (id: string): Promise<Project> => {
+    const res = await fetch(`/api/v1/projects/${id}/start`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors du démarrage')
+    }
+    const updated: Project = await res.json()
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)))
+    return updated
+  }
+
+  const stopProject = async (id: string): Promise<Project> => {
+    const res = await fetch(`/api/v1/projects/${id}/stop`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors de l\'arrêt')
+    }
+    const updated: Project = await res.json()
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)))
+    return updated
+  }
+
+  const restartProject = async (id: string): Promise<Project> => {
+    const res = await fetch(`/api/v1/projects/${id}/restart`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors du redémarrage')
+    }
+    const updated: Project = await res.json()
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, status: updated.status } : p)))
+    return updated
+  }
+
   const checkSlug = async (slug: string): Promise<{ available: boolean }> => {
     const res = await fetch(`/api/v1/projects/check-slug?slug=${encodeURIComponent(slug)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -83,7 +158,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <ProjectsContext.Provider value={{ fetchProjects, createProject, checkSlug }}>
+    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, renameProject, startProject, stopProject, restartProject, checkSlug }}>
       {children}
     </ProjectsContext.Provider>
   )

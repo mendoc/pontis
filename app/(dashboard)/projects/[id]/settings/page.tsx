@@ -1,21 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField } from '@radix-ui/themes'
-import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, Pencil1Icon, UploadIcon } from '@radix-ui/react-icons'
-
-// Données statiques — à connecter à l'API
-const project = {
-  name: 'Mon site',
-  slug: 'mon-site',
-  domain: 'mon-site.app.ongoua.pro',
-  status: 'running',
-  createdAt: '2025-03-10T14:32:00Z',
-  lastDeploy: {
-    status: 'success',
-    deployedAt: '2026-03-18T07:12:00Z',
-  },
-}
+import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, PlayIcon, Pencil1Icon, UploadIcon } from '@radix-ui/react-icons'
+import { useProjects, Project } from '@/app/context/projects'
+import { useAuth } from '@/app/context/auth'
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
@@ -27,17 +17,8 @@ function CopyButton({ value }: { value: string }) {
   }
 
   return (
-    <Button
-      variant="ghost"
-      color="gray"
-      size="1"
-      style={{ cursor: 'pointer', padding: '0 4px', height: 20 }}
-      onClick={handleCopy}
-    >
-      {copied
-        ? <CheckIcon style={{ color: 'var(--green-9)' }} />
-        : <CopyIcon style={{ color: 'var(--gray-8)' }} />
-      }
+    <Button variant="ghost" color="gray" size="1" style={{ cursor: 'pointer', padding: '0 4px', height: 20 }} onClick={handleCopy}>
+      {copied ? <CheckIcon style={{ color: 'var(--green-9)' }} /> : <CopyIcon style={{ color: 'var(--gray-8)' }} />}
     </Button>
   )
 }
@@ -45,49 +26,60 @@ function CopyButton({ value }: { value: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Flex direction="column" gap="2">
-      <Text size="2" weight="medium" style={{ color: 'var(--gray-10)' }}>
-        {label}
-      </Text>
+      <Text size="2" weight="medium" style={{ color: 'var(--gray-10)' }}>{label}</Text>
       <Box>{children}</Box>
     </Flex>
   )
 }
 
-function RenameField({ initialName }: { initialName: string }) {
+function RenameField({ initialName, onSave }: { initialName: string; onSave: (name: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(initialName)
   const [draft, setDraft] = useState(initialName)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSave = () => {
-    setName(draft.trim() || name)
-    setEditing(false)
+  useEffect(() => { setName(initialName); setDraft(initialName) }, [initialName])
+
+  const handleSave = async () => {
+    const trimmed = draft.trim()
+    if (!trimmed || trimmed === name) { setEditing(false); return }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(trimmed)
+      setName(trimmed)
+      setEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleCancel = () => {
-    setDraft(name)
-    setEditing(false)
-  }
+  const handleCancel = () => { setDraft(name); setEditing(false); setError(null) }
 
   if (editing) {
     return (
-      <Flex align="center" gap="3">
-        <TextField.Root
-          size="3"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSave()
-            if (e.key === 'Escape') handleCancel()
-          }}
-          autoFocus
-          style={{ width: 240, height: 48 }}
-        />
-        <Button size="2" variant="solid" color="gray" highContrast style={{ cursor: 'pointer' }} onClick={handleSave}>
-          Enregistrer
-        </Button>
-        <Button size="2" variant="ghost" color="gray" style={{ cursor: 'pointer' }} onClick={handleCancel}>
-          Annuler
-        </Button>
+      <Flex direction="column" gap="2">
+        <Flex align="center" gap="3">
+          <TextField.Root
+            size="3"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') handleCancel() }}
+            autoFocus
+            style={{ width: 240, height: 36 }}
+            disabled={saving}
+          />
+          <Button size="2" variant="solid" color="gray" highContrast style={{ cursor: 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }} onClick={handleSave} disabled={saving}>
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
+          <Button size="2" variant="ghost" color="gray" style={{ cursor: 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }} onClick={handleCancel} disabled={saving}>
+            Annuler
+          </Button>
+        </Flex>
+        {error && <Text size="2" style={{ color: 'var(--red-10)' }}>{error}</Text>}
       </Flex>
     )
   }
@@ -95,13 +87,7 @@ function RenameField({ initialName }: { initialName: string }) {
   return (
     <Flex align="center" gap="3">
       <Text size="4" style={{ color: 'var(--gray-12)' }}>{name}</Text>
-      <Button
-        variant="ghost"
-        color="gray"
-        size="1"
-        style={{ cursor: 'pointer', padding: '0 4px', height: 20 }}
-        onClick={() => { setDraft(name); setEditing(true) }}
-      >
+      <Button variant="ghost" color="gray" size="1" style={{ cursor: 'pointer', padding: '0 4px', height: 20 }} onClick={() => { setDraft(name); setEditing(true) }}>
         <Pencil1Icon style={{ color: 'var(--gray-8)' }} />
       </Button>
     </Flex>
@@ -128,26 +114,18 @@ function RedeployZone() {
   return (
     <Flex direction="column" gap="3">
       <Flex
-        align="center"
-        justify="center"
-        direction="column"
-        gap="2"
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
+        align="center" justify="center" direction="column" gap="2"
+        onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}
         onClick={() => fileInputRef.current?.click()}
         style={{
           border: `2px dashed ${file ? 'var(--green-8)' : 'var(--gray-6)'}`,
-          borderRadius: 6,
-          padding: '20px 16px',
-          cursor: 'pointer',
+          borderRadius: 6, padding: '20px 16px', cursor: 'pointer',
           backgroundColor: file ? 'var(--green-2)' : undefined,
           transition: 'border-color 0.15s, background-color 0.15s',
         }}
       >
         {file ? (
-          <Text size="2" style={{ color: 'var(--green-11)' }}>
-            {file.name} — {(file.size / 1024 / 1024).toFixed(2)} Mo
-          </Text>
+          <Text size="2" style={{ color: 'var(--green-11)' }}>{file.name} — {(file.size / 1024 / 1024).toFixed(2)} Mo</Text>
         ) : (
           <>
             <UploadIcon style={{ color: 'var(--gray-8)' }} />
@@ -156,15 +134,7 @@ function RedeployZone() {
         )}
       </Flex>
       <input ref={fileInputRef} type="file" accept=".zip" style={{ display: 'none' }} onChange={handleFileChange} />
-      <Button
-        size="2"
-        variant="solid"
-        color="gray"
-        highContrast
-        size="3"
-        disabled={!file}
-        style={{ cursor: file ? 'pointer' : 'not-allowed', alignSelf: 'flex-start' }}
-      >
+      <Button size="3" variant="solid" color="gray" highContrast disabled={!file} style={{ cursor: file ? 'pointer' : 'not-allowed', alignSelf: 'flex-start' }}>
         Lancer le redéploiement
       </Button>
     </Flex>
@@ -172,25 +142,43 @@ function RedeployZone() {
 }
 
 export default function ProjectSettingsPage() {
-  const createdAt = new Date(project.createdAt).toLocaleDateString('fr-FR', {
-    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  const { id } = useParams<{ id: string }>()
+  const { getProject, renameProject, startProject, stopProject, restartProject } = useProjects()
+  const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const { isLoading: authLoading } = useAuth()
+  const [project, setProject] = useState<Project | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const deployedAt = new Date(project.lastDeploy.deployedAt).toLocaleDateString('fr-FR', {
-    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+  useEffect(() => {
+    if (authLoading) return
+    getProject(id).then(setProject).catch(() => {}).finally(() => setLoading(false))
+  }, [id, authLoading])
+
+  if (loading) {
+    return <Text size="3" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
+  }
+
+  if (!project) {
+    return <Text size="3" style={{ color: 'var(--red-10)' }}>Projet introuvable.</Text>
+  }
+
+  const createdAt = project.createdAt
+    ? new Date(project.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—'
 
   return (
     <Box style={{ maxWidth: 800 }}>
-      <Heading size="7" mb="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
-        Configuration
-      </Heading>
+      <Heading size="7" mb="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>Configuration</Heading>
 
       <Flex gap="8" align="start">
         {/* Colonne gauche — détails */}
         <Flex direction="column" gap="5" style={{ flex: 1 }}>
           <Field label="Nom">
-            <RenameField initialName={project.name} />
+            <RenameField
+              initialName={project.name}
+              onSave={(name) => renameProject(id, name).then((updated) => setProject(updated))}
+            />
           </Field>
 
           <Field label="Slug">
@@ -202,15 +190,14 @@ export default function ProjectSettingsPage() {
 
           <Field label="Sous-domaine">
             <Flex align="center" gap="3">
-              <a
-                href={`https://${project.domain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 16, color: 'var(--gray-12)', textDecoration: 'none' }}
-              >
-                {project.domain} ↗
-              </a>
-              <CopyButton value={project.domain} />
+              {project.domain ? (
+                <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: 'var(--gray-12)', textDecoration: 'none' }}>
+                  {project.domain} ↗
+                </a>
+              ) : (
+                <Text size="4" style={{ color: 'var(--gray-9)' }}>—</Text>
+              )}
+              {project.domain && <CopyButton value={project.domain} />}
             </Flex>
           </Field>
 
@@ -221,51 +208,67 @@ export default function ProjectSettingsPage() {
             {project.status === 'stopped' && <Badge color="gray" variant="soft">stopped</Badge>}
           </Field>
 
-          <Field label="Dernier déploiement">
-            <Flex direction="column" gap="1">
-              <Flex align="center" gap="2">
-                {project.lastDeploy.status === 'success' && <Badge color="green" variant="soft">Succès</Badge>}
-                {project.lastDeploy.status === 'failed' && <Badge color="red" variant="soft">Échec</Badge>}
-                <Text size="3" style={{ color: 'var(--gray-12)' }}>{deployedAt}</Text>
-              </Flex>
-              <a href="./logs" style={{ fontSize: 14, color: 'var(--accent-9)', textDecoration: 'none' }}>
-                Voir les logs →
-              </a>
-            </Flex>
-          </Field>
-
           <Field label="Créé le">
             <Text size="4" style={{ color: 'var(--gray-12)' }}>{createdAt}</Text>
           </Field>
         </Flex>
 
         {/* Colonne droite — actions */}
-        <Flex
-          direction="column"
-          gap="2"
-          style={{
-            width: 200,
-            flexShrink: 0,
-            border: '1px solid var(--gray-4)',
-            borderRadius: 6,
-            padding: 16,
-          }}
-        >
+        <Flex direction="column" gap="2" style={{ width: 200, flexShrink: 0, border: '1px solid var(--gray-4)', borderRadius: 6, padding: 16 }}>
           <Text size="2" style={{ color: 'var(--gray-9)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
             Actions
           </Text>
-          <Button variant="outline" color="gray" size="3" style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}>
-            <ReloadIcon />
-            Redéployer
+          {project.status === 'stopped' ? (
+            <Button
+              variant="outline" color="gray" size="3"
+              disabled={actionLoading === 'start'}
+              style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--green-10)'; e.currentTarget.style.borderColor = 'var(--green-8)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
+              onClick={async () => {
+                setActionLoading('start'); setActionError(null)
+                try { setProject(await startProject(id)) }
+                catch (err) { setActionError(err instanceof Error ? err.message : 'Erreur') }
+                finally { setActionLoading(null) }
+              }}
+            >
+              <PlayIcon />{actionLoading === 'start' ? 'Démarrage…' : 'Démarrer'}
+            </Button>
+          ) : (
+            <Button
+              variant="outline" color="gray" size="3"
+              disabled={actionLoading === 'stop'}
+              style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--red-10)'; e.currentTarget.style.borderColor = 'var(--red-8)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
+              onClick={async () => {
+                setActionLoading('stop'); setActionError(null)
+                try { setProject(await stopProject(id)) }
+                catch (err) { setActionError(err instanceof Error ? err.message : 'Erreur') }
+                finally { setActionLoading(null) }
+              }}
+            >
+              <StopIcon />{actionLoading === 'stop' ? 'Arrêt…' : 'Stopper'}
+            </Button>
+          )}
+          <Button
+            variant="outline" color="gray" size="3"
+            disabled={actionLoading === 'restart' || project.status === 'stopped'}
+            style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--orange-10)'; e.currentTarget.style.borderColor = 'var(--orange-8)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
+            onClick={async () => {
+              setActionLoading('restart'); setActionError(null)
+              try { setProject(await restartProject(id)) }
+              catch (err) { setActionError(err instanceof Error ? err.message : 'Erreur') }
+              finally { setActionLoading(null) }
+            }}
+          >
+            <ReloadIcon />{actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
           </Button>
-          <Button variant="outline" color="gray" size="3" style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}>
-            <StopIcon />
-            Stopper
-          </Button>
-          <Button variant="outline" color="gray" size="3" style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}>
-            <ReloadIcon style={{ transform: 'scaleX(-1)' }} />
-            Redémarrer
-          </Button>
+          {actionError && (
+            <Text size="1" style={{ color: 'var(--red-10)' }}>{actionError}</Text>
+          )}
         </Flex>
       </Flex>
 

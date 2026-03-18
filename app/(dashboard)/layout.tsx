@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Box, Flex, Text, Heading, Button, DropdownMenu } from '@radix-ui/themes'
 import {
@@ -218,7 +218,7 @@ function ThemeToggle() {
       color="gray"
       size="2"
       onClick={cycle}
-      style={{ cursor: 'pointer', gap: 6 }}
+      style={{ cursor: 'pointer', gap: 6, height: 36 }}
       title={`Thème : ${label}`}
     >
       {icon}
@@ -230,16 +230,16 @@ function ThemeToggle() {
 function ProjectSwitcher() {
   const pathname = usePathname()
   const router = useRouter()
-  const { fetchProjects } = useProjects()
-  const [projects, setProjects] = useState<Project[]>([])
+  const { fetchProjects, projects } = useProjects()
+  const { isLoading: authLoading } = useAuth()
 
   const match = pathname.match(/^\/projects\/([^/]+)/)
   const currentProjectId = match?.[1] !== 'new' ? match?.[1] : undefined
 
   useEffect(() => {
-    if (!currentProjectId) return
-    fetchProjects().then(setProjects).catch(() => {})
-  }, [currentProjectId])
+    if (!currentProjectId || authLoading) return
+    fetchProjects().catch(() => {})
+  }, [currentProjectId, authLoading])
 
   if (!currentProjectId) return null
 
@@ -249,7 +249,7 @@ function ProjectSwitcher() {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
-        <Button variant="ghost" color="gray" size="2" style={{ cursor: 'pointer', gap: 6 }}>
+        <Button variant="ghost" color="gray" size="2" style={{ cursor: 'pointer', gap: 6, height: 36 }}>
           <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
             {currentProject?.name ?? '…'}
           </Text>
