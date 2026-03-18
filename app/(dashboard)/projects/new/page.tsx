@@ -15,14 +15,18 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
+type Phase = 'idle' | 'uploading' | 'building' | 'ssl'
+
 export default function NewProjectPage() {
   const router = useRouter()
-  const { createProject, checkSlug } = useProjects()
+  const { createProject, checkSlug, getProject } = useProjects()
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [sslSecondsLeft, setSslSecondsLeft] = useState(30)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // État de la vérification du slug
@@ -115,13 +119,37 @@ export default function NewProjectPage() {
 
     setSubmitting(true)
     setUploadProgress(0)
+    setPhase('uploading')
     try {
-      await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
-      router.push('/dashboard')
+      const project = await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
+
+      // Phase build : polling jusqu'à running ou failed
+      setPhase('building')
+      let status = project.status
+      while (status === 'building') {
+        await new Promise((r) => setTimeout(r, 2000))
+        const updated = await getProject(project.id)
+        status = updated.status
+      }
+
+      if (status === 'failed') {
+        setError('Le build a échoué. Vérifiez votre archive ZIP.')
+        return
+      }
+
+      // Phase SSL : countdown 30s
+      setPhase('ssl')
+      for (let i = 30; i > 0; i--) {
+        setSslSecondsLeft(i)
+        await new Promise((r) => setTimeout(r, 1000))
+      }
+
+      router.push(`/projects/${project.id}/settings`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
       setSubmitting(false)
+      setPhase('idle')
     }
   }
 
@@ -221,10 +249,17 @@ export default function NewProjectPage() {
 
         {submitting && (
           <Box mb="4">
-            <Text size="1" color="gray" mb="1" style={{ display: 'block' }}>
-              {uploadProgress < 100 ? `Téléversement… ${uploadProgress}%` : 'Déploiement en cours…'}
-            </Text>
-            <Progress value={uploadProgress} />
+            <Flex justify="between" mb="1">
+              <Text size="1" color="gray">
+                {phase === 'uploading' && `Téléversement… ${uploadProgress}%`}
+                {phase === 'building' && 'Build en cours…'}
+                {phase === 'ssl' && 'Génération du certificat SSL…'}
+              </Text>
+              {phase === 'ssl' && (
+                <Text size="1" color="gray">{sslSecondsLeft}s</Text>
+              )}
+            </Flex>
+            <Progress value={phase === 'uploading' ? uploadProgress : 100} />
           </Box>
         )}
 
@@ -244,9 +279,10 @@ export default function NewProjectPage() {
             disabled={submitting || slug.length < 3 || slugStatus === 'taken' || slugStatus === 'checking'}
             style={{ cursor: submitting ? 'not-allowed' : 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }}
           >
-            {submitting
-              ? (uploadProgress < 100 ? 'Téléversement…' : 'Déploiement…')
-              : 'Créer le projet'}
+            {phase === 'uploading' && 'Téléversement…'}
+            {phase === 'building' && 'Build en cours…'}
+            {phase === 'ssl' && 'Déploiement…'}
+            {phase === 'idle' && 'Créer le projet'}
           </Button>
           <Button
             type="button"
