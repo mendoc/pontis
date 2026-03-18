@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField } from '@radix-ui/themes'
+import { useParams, useRouter } from 'next/navigation'
+import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField, AlertDialog } from '@radix-ui/themes'
 import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, PlayIcon, Pencil1Icon, UploadIcon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
@@ -207,6 +207,73 @@ function RedeployZone({ projectId }: { projectId: string }) {
   )
 }
 
+function DeleteDialog({ projectSlug, projectId }: { projectSlug: string; projectId: string }) {
+  const { deleteProject } = useProjects()
+  const router = useRouter()
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  const handleDelete = async () => {
+    if (input !== projectSlug) return
+    setLoading(true)
+    setError(null)
+    try {
+      await deleteProject(projectId)
+      router.push('/dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AlertDialog.Root open={open} onOpenChange={setOpen}>
+      <AlertDialog.Trigger>
+        <Button variant="outline" color="red" size="3" style={{ cursor: 'pointer' }}>
+          Supprimer le projet
+        </Button>
+      </AlertDialog.Trigger>
+      <AlertDialog.Content maxWidth="440px">
+        <AlertDialog.Title>Supprimer le projet</AlertDialog.Title>
+        <AlertDialog.Description size="2" mb="4">
+          Cette action est irréversible. Le container, l'image Docker et toutes les données associées seront définitivement supprimés.
+        </AlertDialog.Description>
+
+        <Text size="2" mb="2" style={{ display: 'block' }}>
+          Saisissez <strong>{projectSlug}</strong> pour confirmer :
+        </Text>
+        <TextField.Root
+          size="2"
+          placeholder={projectSlug}
+          value={input}
+          onChange={(e) => { setInput(e.target.value); setError(null) }}
+          disabled={loading}
+          style={{ marginBottom: 12 }}
+        />
+        {error && <Text size="2" style={{ color: 'var(--red-10)', display: 'block', marginBottom: 8 }}>{error}</Text>}
+
+        <Flex gap="3" justify="end">
+          <AlertDialog.Cancel>
+            <Button variant="soft" color="gray" disabled={loading} style={{ cursor: 'pointer' }}>
+              Annuler
+            </Button>
+          </AlertDialog.Cancel>
+          <Button
+            variant="solid" color="red"
+            disabled={input !== projectSlug || loading}
+            style={{ cursor: input === projectSlug && !loading ? 'pointer' : 'not-allowed' }}
+            onClick={handleDelete}
+          >
+            {loading ? 'Suppression…' : 'Supprimer définitivement'}
+          </Button>
+        </Flex>
+      </AlertDialog.Content>
+    </AlertDialog.Root>
+  )
+}
+
 export default function ProjectSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const { getProject, renameProject, startProject, stopProject, restartProject } = useProjects()
@@ -358,9 +425,7 @@ export default function ProjectSettingsPage() {
           La suppression du projet est irréversible. Le container et le domaine associé seront détruits.
         </Text>
         <Box>
-          <Button variant="outline" color="red" size="3" style={{ cursor: 'pointer' }}>
-            Supprimer le projet
-          </Button>
+          <DeleteDialog projectSlug={project.slug} projectId={id} />
         </Box>
       </Flex>
     </Box>

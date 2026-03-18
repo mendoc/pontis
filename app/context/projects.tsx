@@ -23,6 +23,7 @@ interface ProjectsContextValue {
   stopProject: (id: string) => Promise<Project>
   restartProject: (id: string) => Promise<Project>
   checkSlug: (slug: string) => Promise<{ available: boolean }>
+  deleteProject: (id: string) => Promise<void>
 }
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null)
@@ -191,8 +192,20 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return res.json()
   }
 
+  const deleteProject = async (id: string): Promise<void> => {
+    const res = await fetch(`/api/v1/projects/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors de la suppression')
+    }
+    setProjects((prev) => prev.filter((p) => p.id !== id))
+  }
+
   return (
-    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug }}>
+    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug, deleteProject }}>
       {children}
     </ProjectsContext.Provider>
   )
