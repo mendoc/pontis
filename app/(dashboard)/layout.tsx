@@ -19,6 +19,7 @@ import {
   ChevronDownIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
+import pkg from '@/package.json'
 import { ProjectsProvider, useProjects, Project } from '@/app/context/projects'
 import { useThemeMode } from '@/app/components/ThemeProvider'
 
@@ -142,12 +143,10 @@ function Sidebar() {
       {/* Zone scrollable */}
       <Box style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px 8px 0' }}>
         {/* Logo */}
-        <Heading
-          size="4"
-          style={{ paddingLeft: 16, marginBottom: 24, color: 'var(--gray-12)', display: 'block' }}
-        >
-          Pontis
-        </Heading>
+        <Flex align="baseline" justify="between" style={{ paddingLeft: 16, paddingRight: 16, marginBottom: 24 }}>
+          <Heading size="4" style={{ color: 'var(--gray-12)' }}>Pontis</Heading>
+          <Text size="1" style={{ color: 'var(--gray-8)', fontFamily: 'monospace' }}>v{pkg.version}</Text>
+        </Flex>
 
         {/* Navigation globale */}
         <NavSection items={globalNavItems} pathname={pathname} router={router} />
