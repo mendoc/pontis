@@ -22,7 +22,7 @@ export interface ProjectsPage {
 
 interface ProjectsContextValue {
   projects: Project[]
-  fetchProjects: (opts?: { page?: number; limit?: number; search?: string }) => Promise<ProjectsPage>
+  fetchProjects: (opts?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => Promise<ProjectsPage>
   getProject: (id: string) => Promise<Project>
   createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
   redeployProject: (id: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
@@ -52,12 +52,14 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return doRequest(newToken)
   }
 
-  const fetchProjects = async (opts: { page?: number; limit?: number; search?: string } = {}): Promise<ProjectsPage> => {
+  const fetchProjects = async (opts: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}): Promise<ProjectsPage> => {
     if (authLoading || !accessToken) throw new Error('Non authentifié')
     const params = new URLSearchParams()
     params.set('page', String(opts.page ?? 1))
     params.set('limit', String(opts.limit ?? 100))
     if (opts.search?.trim()) params.set('search', opts.search.trim())
+    if (opts.sortBy) params.set('sortBy', opts.sortBy)
+    if (opts.sortOrder) params.set('sortOrder', opts.sortOrder)
     const res = await authFetch(`/api/v1/projects?${params}`)
     if (!res.ok) throw new Error('Erreur lors du chargement des projets')
     const result: ProjectsPage = await res.json()

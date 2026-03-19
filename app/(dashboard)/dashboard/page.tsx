@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { DotsHorizontalIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 
@@ -15,6 +15,36 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+type SortOrder = 'asc' | 'desc'
+
+function SortableHeader({ label, field, sortBy, sortOrder, onSort }: {
+  label: string
+  field: string
+  sortBy: string
+  sortOrder: SortOrder
+  onSort: (field: string) => void
+}) {
+  const active = sortBy === field
+  return (
+    <th
+      onClick={() => onSort(field)}
+      style={{ padding: '10px 16px', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
+    >
+      <Flex align="center" gap="1">
+        <Text size="1" weight="medium" style={{ color: active ? 'var(--gray-12)' : 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {label}
+        </Text>
+        {active
+          ? sortOrder === 'asc'
+            ? <ChevronUpIcon style={{ color: 'var(--gray-11)' }} />
+            : <ChevronDownIcon style={{ color: 'var(--gray-11)' }} />
+          : <ChevronDownIcon style={{ color: 'var(--gray-6)' }} />
+        }
+      </Flex>
+    </th>
+  )
+}
 
 function StatusBadge({ status }: { status: string }) {
   const label = STATUS_LABELS[status] ?? status
@@ -221,6 +251,8 @@ export default function DashboardPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
 
@@ -238,7 +270,7 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const result = await fetchRef.current({ page: 1, limit: LIMIT })
+        const result = await fetchRef.current({ page: 1, limit: LIMIT, sortBy: 'createdAt', sortOrder: 'desc' })
         if (!active) return
         setProjects(result.data)
         setTotal(result.total)
@@ -266,39 +298,49 @@ export default function DashboardPage() {
     }
   }, [authLoading])
 
-  // Recherche via API (mode multi-pages) avec debounce 300 ms
+  // Fetch API mutualisé (recherche + tri + pagination)
+  const apiFetch = async (p: number, s: string, sb: string, so: SortOrder) => {
+    const result = await fetchRef.current({ page: p, limit: LIMIT, search: s, sortBy: sb, sortOrder: so })
+    setProjects(result.data)
+    setTotal(result.total)
+    setPage(p)
+  }
+
+  // Recherche via API avec debounce 300 ms
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (isLocalMode) return
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
     searchDebounce.current = setTimeout(async () => {
       setSearching(true)
-      setPage(1)
-      try {
-        const result = await fetchRef.current({ page: 1, limit: LIMIT, search })
-        setProjects(result.data)
-        setTotal(result.total)
-      } catch {
-        // silencieux
-      } finally {
-        setSearching(false)
-      }
+      try { await apiFetch(1, search, sortBy, sortOrder) } catch { /* silencieux */ }
+      finally { setSearching(false) }
     }, 300)
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current) }
   }, [search, isLocalMode])
 
-  // Changement de page (mode multi-pages)
+  // Tri via API
+  useEffect(() => {
+    if (isLocalMode || loading) return
+    setSearching(true)
+    apiFetch(1, search, sortBy, sortOrder)
+      .catch(() => {})
+      .finally(() => setSearching(false))
+  }, [sortBy, sortOrder])
+
+  // Changement de page
   const goToPage = async (p: number) => {
     setSearching(true)
-    setPage(p)
-    try {
-      const result = await fetchRef.current({ page: p, limit: LIMIT, search })
-      setProjects(result.data)
-      setTotal(result.total)
-    } catch {
-      // silencieux
-    } finally {
-      setSearching(false)
+    try { await apiFetch(p, search, sortBy, sortOrder) } catch { /* silencieux */ }
+    finally { setSearching(false) }
+  }
+
+  const handleSort = (field: string) => {
+    if (field === sortBy) {
+      setSortOrder((prev) => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
     }
   }
 
@@ -313,8 +355,8 @@ export default function DashboardPage() {
 
   const createdBy = name ?? email ?? ''
 
-  // Filtrage local (uniquement si tout tient sur une page)
-  const displayedProjects = isLocalMode && search.trim() !== '' ? (() => {
+  // Filtrage local (mode une seule page)
+  const filteredProjects = isLocalMode && search.trim() !== '' ? (() => {
     const q = normalize(search)
     return projects.filter((p) =>
       normalize(p.name).includes(q) ||
@@ -324,6 +366,21 @@ export default function DashboardPage() {
       normalize(createdBy).includes(q)
     )
   })() : projects
+
+  // Tri local (mode une seule page)
+  const displayedProjects = isLocalMode ? [...filteredProjects].sort((a, b) => {
+    let av = '', bv = ''
+    switch (sortBy) {
+      case 'name':      av = a.name;                          bv = b.name;                          break
+      case 'domain':    av = a.domain ?? '';                  bv = b.domain ?? '';                  break
+      case 'status':    av = STATUS_LABELS[a.status] ?? '';   bv = STATUS_LABELS[b.status] ?? '';   break
+      case 'createdBy': av = createdBy;                       bv = createdBy;                       break
+      case 'type':      av = a.type ?? '';                    bv = b.type ?? '';                    break
+      case 'createdAt': av = a.createdAt ?? '';               bv = b.createdAt ?? '';               break
+    }
+    const cmp = normalize(av).localeCompare(normalize(bv))
+    return sortOrder === 'asc' ? cmp : -cmp
+  }) : filteredProjects
 
   const totalPages = Math.ceil(total / LIMIT)
 
@@ -361,24 +418,12 @@ export default function DashboardPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--gray-4)', backgroundColor: 'var(--gray-2)' }}>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nom</Text>
-                  </th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sous-domaine</Text>
-                  </th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</Text>
-                  </th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé par</Text>
-                  </th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</Text>
-                  </th>
-                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé le</Text>
-                  </th>
+                  <SortableHeader label="Nom"          field="name"      sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Sous-domaine" field="domain"    sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Statut"       field="status"    sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Créé par"     field="createdBy" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Type"         field="type"      sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Créé le"      field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <th style={{ padding: '10px 16px', width: 48 }} />
                 </tr>
               </thead>
