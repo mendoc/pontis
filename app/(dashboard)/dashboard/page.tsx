@@ -2,68 +2,221 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Flex, Heading, Text, Button, Badge } from '@radix-ui/themes'
+import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
+import { DotsHorizontalIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'running') return <Badge color="green" variant="soft">{status}</Badge>
-  if (status === 'building') return <Badge color="orange" variant="soft">{status}</Badge>
-  if (status === 'failed') return <Badge color="red" variant="soft">{status}</Badge>
-  return <Badge color="gray" variant="soft">{status}</Badge>
+const STATUS_LABELS: Record<string, string> = {
+  running: 'En ligne',
+  building: 'En cours',
+  stopped: 'Arrêté',
+  failed: 'Échoué',
 }
 
-function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
+function StatusBadge({ status }: { status: string }) {
+  const label = STATUS_LABELS[status] ?? status
+  if (status === 'running') return <Badge color="green" variant="soft">{label}</Badge>
+  if (status === 'building') return <Badge color="orange" variant="soft">{label}</Badge>
+  if (status === 'failed') return <Badge color="red" variant="soft">{label}</Badge>
+  return <Badge color="gray" variant="soft">{label}</Badge>
+}
+
+function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
+  project: Project
+  createdBy: string
+  onUpdate: (updated: Project) => void
+  onDelete: (id: string) => void
+}) {
+  const router = useRouter()
+  const { startProject, stopProject, restartProject, deleteProject } = useProjects()
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const handleAction = async (key: string, action: () => Promise<Project>) => {
+    setActionLoading(key)
+    try {
+      const updated = await action()
+      onUpdate(updated)
+    } catch {
+      // silencieux
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (deleteInput !== project.slug) return
+    setDeleteLoading(true)
+    setDeleteError(null)
+    try {
+      await deleteProject(project.id)
+      onDelete(project.id)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+      setDeleteLoading(false)
+    }
+  }
+
+  const isRunning = project.status === 'running'
+  const isStopped = project.status === 'stopped'
+  const isBusy = !!actionLoading || project.status === 'building'
+
   return (
-    <Box
-      onClick={onClick}
-      style={{
-        border: '1px solid var(--gray-5)',
-        borderRadius: 6,
-        padding: '16px 20px',
-        backgroundColor: 'var(--color-panel-solid)',
-        minWidth: 240,
-        maxWidth: 320,
-        cursor: 'pointer',
-        transition: 'border-color 0.15s',
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gray-8)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--gray-5)')}
-    >
-      <Flex justify="between" align="start" mb="2">
-        <Text size="3" weight="medium" style={{ color: 'var(--gray-12)' }}>
-          {project.name}
-        </Text>
-        <StatusBadge status={project.status} />
-      </Flex>
-      {project.status === 'running' && project.domain && (
-        <a
-          href={`https://${project.domain}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          style={{ fontSize: 12, color: 'var(--accent-9)', textDecoration: 'none' }}
-        >
-          {project.domain} ↗
-        </a>
-      )}
-    </Box>
+    <>
+      <tr
+        onClick={() => router.push(`/projects/${project.id}/settings`)}
+        style={{ cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--gray-2)')}
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+      >
+        {/* Nom */}
+        <td style={{ padding: '12px 16px' }}>
+          <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>{project.name}</Text>
+        </td>
+
+        {/* Sous-domaine */}
+        <td style={{ padding: '12px 16px' }}>
+          {project.domain ? (
+            <a
+              href={`https://${project.domain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
+            >
+              {project.domain}
+              <ExternalLinkIcon width={12} height={12} />
+            </a>
+          ) : (
+            <Text size="2" style={{ color: 'var(--gray-8)' }}>—</Text>
+          )}
+        </td>
+
+        {/* Statut */}
+        <td style={{ padding: '12px 16px' }}>
+          <StatusBadge status={project.status} />
+        </td>
+
+        {/* Créé par */}
+        <td style={{ padding: '12px 16px' }}>
+          <Text size="2" style={{ color: 'var(--gray-10)' }}>{createdBy}</Text>
+        </td>
+
+        {/* Type */}
+        <td style={{ padding: '12px 16px' }}>
+          <Text size="2" style={{ color: 'var(--gray-10)', fontFamily: 'monospace' }}>{project.type ?? '—'}</Text>
+        </td>
+
+        {/* Date de création */}
+        <td style={{ padding: '12px 16px' }}>
+          <Text size="2" style={{ color: 'var(--gray-10)' }}>
+            {project.createdAt ? new Date(project.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+          </Text>
+        </td>
+
+        {/* Actions */}
+        <td style={{ padding: '12px 16px', width: 48 }} onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              <Button variant="ghost" color="gray" size="1" style={{ cursor: 'pointer', padding: '0 6px', height: 28 }}>
+                <DotsHorizontalIcon />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end" size="2">
+              {isRunning && (
+                <DropdownMenu.Item
+                  disabled={isBusy}
+                  onClick={() => handleAction('stop', () => stopProject(project.id))}
+                >
+                  {actionLoading === 'stop' ? 'Arrêt…' : 'Stopper'}
+                </DropdownMenu.Item>
+              )}
+              {isStopped && (
+                <DropdownMenu.Item
+                  disabled={isBusy}
+                  onClick={() => handleAction('start', () => startProject(project.id))}
+                >
+                  {actionLoading === 'start' ? 'Démarrage…' : 'Démarrer'}
+                </DropdownMenu.Item>
+              )}
+              <DropdownMenu.Item
+                disabled={isBusy || isStopped}
+                onClick={() => handleAction('restart', () => restartProject(project.id))}
+              >
+                {actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item onClick={() => router.push(`/projects/${project.id}/logs`)}>
+                Voir les logs
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                color="red"
+                onClick={() => { setDeleteInput(''); setDeleteError(null); setDeleteOpen(true) }}
+              >
+                Supprimer
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
+        </td>
+      </tr>
+
+      {/* Modale de confirmation de suppression */}
+      <AlertDialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialog.Content maxWidth="440px">
+          <AlertDialog.Title>Supprimer le projet</AlertDialog.Title>
+          <AlertDialog.Description size="2" mb="4">
+            Cette action est irréversible. Le container, l'image Docker et toutes les données associées seront définitivement supprimés.
+          </AlertDialog.Description>
+          <Text size="2" mb="2" style={{ display: 'block' }}>
+            Saisissez <strong>{project.slug}</strong> pour confirmer :
+          </Text>
+          <TextField.Root
+            size="2"
+            placeholder={project.slug}
+            value={deleteInput}
+            onChange={(e) => { setDeleteInput(e.target.value); setDeleteError(null) }}
+            disabled={deleteLoading}
+            style={{ marginBottom: 12 }}
+          />
+          {deleteError && (
+            <Text size="2" style={{ color: 'var(--red-10)', display: 'block', marginBottom: 8 }}>{deleteError}</Text>
+          )}
+          <Flex gap="3" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={deleteLoading} style={{ cursor: 'pointer' }}>
+                Annuler
+              </Button>
+            </AlertDialog.Cancel>
+            <Button
+              variant="solid" color="red"
+              disabled={deleteInput !== project.slug || deleteLoading}
+              style={{ cursor: deleteInput === project.slug && !deleteLoading ? 'pointer' : 'not-allowed' }}
+              onClick={handleDelete}
+            >
+              {deleteLoading ? 'Suppression…' : 'Supprimer définitivement'}
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+    </>
   )
 }
 
 export default function DashboardPage() {
   const router = useRouter()
   const { fetchProjects } = useProjects()
-  const { isLoading: authLoading } = useAuth()
+  const { isLoading: authLoading, email, name } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Toujours pointer vers la dernière version de fetchProjects sans re-créer l'effet
   const fetchRef = useRef(fetchProjects)
   fetchRef.current = fetchProjects
 
   useEffect(() => {
-    // Attendre que l'auth soit initialisée avant de fetcher
     if (authLoading) return
 
     let active = true
@@ -75,7 +228,6 @@ export default function DashboardPage() {
         if (!active) return
         setProjects(data)
 
-        // Démarrer ou arrêter le polling selon le statut des projets
         const hasBuilding = data.some((p) => p.status === 'building')
         if (hasBuilding && !intervalId) {
           intervalId = setInterval(load, 3000)
@@ -98,58 +250,74 @@ export default function DashboardPage() {
     }
   }, [authLoading])
 
+  const handleUpdate = (updated: Project) => {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
+  }
+
+  const handleDelete = (id: string) => {
+    setProjects((prev) => prev.filter((p) => p.id !== id))
+  }
+
   return (
     <Box>
-      <Flex justify="between" align="center" mb="6">
-        <Heading size="7" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
-          Vue d'ensemble
-        </Heading>
-        <Button
-          size="2"
-          variant="solid"
-          color="gray"
-          highContrast
-          style={{ cursor: 'pointer' }}
-          onClick={() => router.push('/projects/new')}
-        >
-          + Nouveau projet
-        </Button>
+      <Heading size="7" mb="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
+        Vue d'ensemble
+      </Heading>
+
+      {/* Bouton créer en pointillés — toujours visible */}
+      <Flex
+        align="center" justify="center"
+        mb="6"
+        style={{ width: 280, height: 80, border: '1px dashed var(--gray-6)', borderRadius: 4, cursor: 'pointer' }}
+        onClick={() => router.push('/projects/new')}
+        onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--gray-8)')}
+        onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--gray-6)')}
+      >
+        <Text size="2" style={{ color: 'var(--gray-10)' }}>+ Créer un projet</Text>
       </Flex>
 
-      <Box mb="6">
-        <Heading size="3" mb="4" style={{ color: 'var(--gray-12)' }}>
-          Projets
-        </Heading>
-
-        {loading ? (
-          <Text size="2" style={{ color: 'var(--gray-9)' }}>Chargement...</Text>
-        ) : projects.length === 0 ? (
-          <Flex
-            align="center"
-            justify="center"
-            style={{
-              width: 280,
-              height: 80,
-              border: '1px dashed var(--gray-6)',
-              cursor: 'pointer',
-              borderRadius: 4,
-            }}
-            onClick={() => router.push('/projects/new')}
-          >
-            <Text size="2" style={{ color: 'var(--gray-10)' }}>+ Créer un projet</Text>
-          </Flex>
-        ) : (
-          <Flex wrap="wrap" gap="4">
-            {projects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onClick={() => router.push(`/projects/${project.id}/settings`)}
-              />
-            ))}
-          </Flex>
-        )}
-      </Box>
+      {loading ? (
+        <Text size="2" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
+      ) : projects.length > 0 && (
+        <Box style={{ border: '1px solid var(--gray-4)', borderRadius: 6, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--gray-4)', backgroundColor: 'var(--gray-2)' }}>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nom</Text>
+                </th>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sous-domaine</Text>
+                </th>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</Text>
+                </th>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé par</Text>
+                </th>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</Text>
+                </th>
+                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé le</Text>
+                </th>
+                <th style={{ padding: '10px 16px', width: 48 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => (
+                <ProjectRow
+                  key={project.id}
+                  project={project}
+                  createdBy={name ?? email ?? '—'}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </tbody>
+          </table>
+        </Box>
+      )}
     </Box>
   )
 }

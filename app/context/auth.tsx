@@ -15,7 +15,7 @@ interface AuthContextValue extends AuthState {
   register: (email: string, password: string) => Promise<void>
   resetPassword: (email: string, code: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  refreshSession: () => Promise<void>
+  refreshSession: () => Promise<string | null>
 }
 
 function decodeJwt(token: string): { email: string | null; name: string | null } {
@@ -37,10 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name: null,
     isLoading: true,
   })
-  const inflightRefresh = useRef<Promise<void> | null>(null)
+  const inflightRefresh = useRef<Promise<string | null> | null>(null)
   const initialized = useRef(false)
 
-  const refreshSession = (): Promise<void> => {
+  const refreshSession = (): Promise<string | null> => {
     if (inflightRefresh.current) return inflightRefresh.current
 
     const publicPaths = ['/login', '/register', '/forgot-password', '/legal']
@@ -54,14 +54,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = await res.json()
           const { email, name } = decodeJwt(data.accessToken)
           setState({ accessToken: data.accessToken, userId: data.userId ?? null, email, name, isLoading: false })
+          return data.accessToken as string
         } else {
           setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
           if (!isPublicPath) window.location.replace('/login')
+          return null
         }
       })
       .catch(() => {
         // Erreur réseau (API indisponible) : ne pas rediriger, le cookie reste valide
         setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
+        return null
       })
       .finally(() => {
         inflightRefresh.current = null

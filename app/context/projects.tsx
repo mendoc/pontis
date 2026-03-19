@@ -7,6 +7,7 @@ export interface Project {
   id: string
   name: string
   slug: string
+  type?: string
   status: string
   domain: string | null
   createdAt?: string
@@ -29,14 +30,24 @@ interface ProjectsContextValue {
 const ProjectsContext = createContext<ProjectsContextValue | null>(null)
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
-  const { accessToken, isLoading: authLoading } = useAuth()
+  const { accessToken, isLoading: authLoading, refreshSession } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
+
+  // Effectue un fetch authentifié. En cas de 401, rafraîchit le token et retente une fois.
+  const authFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
+    const doRequest = (token: string | null) =>
+      fetch(input, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } })
+
+    const res = await doRequest(accessToken)
+    if (res.status !== 401) return res
+
+    const newToken = await refreshSession()
+    return doRequest(newToken)
+  }
 
   const fetchProjects = async (): Promise<Project[]> => {
     if (authLoading || !accessToken) throw new Error('Non authentifié')
-    const res = await fetch('/api/v1/projects', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch('/api/v1/projects')
     if (!res.ok) throw new Error('Erreur lors du chargement des projets')
     const data: Project[] = await res.json()
     setProjects(data)
@@ -44,18 +55,15 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const getProject = async (id: string): Promise<Project> => {
-    const res = await fetch(`/api/v1/projects/${id}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/${id}`)
     if (!res.ok) throw new Error('Projet introuvable')
     return res.json()
   }
 
   const redeployProject = async (id: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
     const CHUNK_SIZE = 5 * 1024 * 1024
-    const authHeader = { Authorization: `Bearer ${accessToken}` }
 
-    const initRes = await fetch('/api/v1/projects/upload/init', { method: 'POST', headers: authHeader })
+    const initRes = await authFetch('/api/v1/projects/upload/init', { method: 'POST' })
     if (!initRes.ok) throw new Error('Erreur lors de l\'initialisation du transfert')
     const { uploadId } = await initRes.json()
 
@@ -65,14 +73,14 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       form.append('uploadId', uploadId)
       form.append('chunkIndex', String(i))
       form.append('chunk', file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
-      const chunkRes = await fetch('/api/v1/projects/upload/chunk', { method: 'POST', headers: authHeader, body: form })
+      const chunkRes = await authFetch('/api/v1/projects/upload/chunk', { method: 'POST', body: form })
       if (!chunkRes.ok) throw new Error(`Erreur lors du transfert du bloc ${i + 1}`)
       onProgress?.(Math.round(((i + 1) / totalChunks) * 100))
     }
 
-    const finalRes = await fetch('/api/v1/projects/upload/redeploy', {
+    const finalRes = await authFetch('/api/v1/projects/upload/redeploy', {
       method: 'POST',
-      headers: { ...authHeader, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId: id, uploadId, totalChunks }),
     })
 
@@ -85,9 +93,9 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const renameProject = async (id: string, name: string): Promise<Project> => {
-    const res = await fetch(`/api/v1/projects/${id}`, {
+    const res = await authFetch(`/api/v1/projects/${id}`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
     if (!res.ok) {
@@ -101,13 +109,9 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
     const CHUNK_SIZE = 5 * 1024 * 1024
-    const authHeader = { Authorization: `Bearer ${accessToken}` }
 
     // 1. Init
-    const initRes = await fetch('/api/v1/projects/upload/init', {
-      method: 'POST',
-      headers: authHeader,
-    })
+    const initRes = await authFetch('/api/v1/projects/upload/init', { method: 'POST' })
     if (!initRes.ok) throw new Error('Erreur lors de l\'initialisation du transfert')
     const { uploadId } = await initRes.json()
 
@@ -118,19 +122,15 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       form.append('uploadId', uploadId)
       form.append('chunkIndex', String(i))
       form.append('chunk', file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
-      const chunkRes = await fetch('/api/v1/projects/upload/chunk', {
-        method: 'POST',
-        headers: authHeader,
-        body: form,
-      })
+      const chunkRes = await authFetch('/api/v1/projects/upload/chunk', { method: 'POST', body: form })
       if (!chunkRes.ok) throw new Error(`Erreur lors du transfert du bloc ${i + 1}`)
       onProgress?.(Math.round(((i + 1) / totalChunks) * 100))
     }
 
     // 3. Finalize
-    const finalRes = await fetch('/api/v1/projects/upload/finalize', {
+    const finalRes = await authFetch('/api/v1/projects/upload/finalize', {
       method: 'POST',
-      headers: { ...authHeader, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, uploadId, totalChunks }),
     })
 
@@ -143,10 +143,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const startProject = async (id: string): Promise<Project> => {
-    const res = await fetch(`/api/v1/projects/${id}/start`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/${id}/start`, { method: 'POST' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Erreur lors du démarrage')
@@ -157,10 +154,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const stopProject = async (id: string): Promise<Project> => {
-    const res = await fetch(`/api/v1/projects/${id}/stop`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/${id}/stop`, { method: 'POST' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Erreur lors de l\'arrêt')
@@ -171,10 +165,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const restartProject = async (id: string): Promise<Project> => {
-    const res = await fetch(`/api/v1/projects/${id}/restart`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/${id}/restart`, { method: 'POST' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Erreur lors du redémarrage')
@@ -185,18 +176,13 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const checkSlug = async (slug: string): Promise<{ available: boolean }> => {
-    const res = await fetch(`/api/v1/projects/check-slug?slug=${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/check-slug?slug=${encodeURIComponent(slug)}`)
     if (!res.ok) throw new Error('Erreur lors de la vérification')
     return res.json()
   }
 
   const deleteProject = async (id: string): Promise<void> => {
-    const res = await fetch(`/api/v1/projects/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    const res = await authFetch(`/api/v1/projects/${id}`, { method: 'DELETE' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       throw new Error(data.error ?? 'Erreur lors de la suppression')

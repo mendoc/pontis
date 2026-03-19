@@ -335,10 +335,10 @@ export default function ProjectSettingsPage() {
           </Field>
 
           <Field label="Statut">
-            {project.status === 'running' && <Badge color="green" variant="soft">running</Badge>}
-            {project.status === 'building' && <Badge color="orange" variant="soft">building</Badge>}
-            {project.status === 'failed' && <Badge color="red" variant="soft">failed</Badge>}
-            {project.status === 'stopped' && <Badge color="gray" variant="soft">stopped</Badge>}
+            {project.status === 'running' && <Badge color="green" variant="soft">En ligne</Badge>}
+            {project.status === 'building' && <Badge color="orange" variant="soft">En cours</Badge>}
+            {project.status === 'failed' && <Badge color="red" variant="soft">Échoué</Badge>}
+            {project.status === 'stopped' && <Badge color="gray" variant="soft">Arrêté</Badge>}
           </Field>
 
           <Field label="Créé le">
