@@ -13,9 +13,16 @@ export interface Project {
   createdAt?: string
 }
 
+export interface ProjectsPage {
+  data: Project[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface ProjectsContextValue {
   projects: Project[]
-  fetchProjects: () => Promise<Project[]>
+  fetchProjects: (opts?: { page?: number; limit?: number; search?: string }) => Promise<ProjectsPage>
   getProject: (id: string) => Promise<Project>
   createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
   redeployProject: (id: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
@@ -45,13 +52,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return doRequest(newToken)
   }
 
-  const fetchProjects = async (): Promise<Project[]> => {
+  const fetchProjects = async (opts: { page?: number; limit?: number; search?: string } = {}): Promise<ProjectsPage> => {
     if (authLoading || !accessToken) throw new Error('Non authentifié')
-    const res = await authFetch('/api/v1/projects')
+    const params = new URLSearchParams()
+    params.set('page', String(opts.page ?? 1))
+    params.set('limit', String(opts.limit ?? 100))
+    if (opts.search?.trim()) params.set('search', opts.search.trim())
+    const res = await authFetch(`/api/v1/projects?${params}`)
     if (!res.ok) throw new Error('Erreur lors du chargement des projets')
-    const data: Project[] = await res.json()
-    setProjects(data)
-    return data
+    const result: ProjectsPage = await res.json()
+    setProjects(result.data)
+    return result
   }
 
   const getProject = async (id: string): Promise<Project> => {

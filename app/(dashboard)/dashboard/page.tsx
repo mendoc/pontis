@@ -14,6 +14,8 @@ const STATUS_LABELS: Record<string, string> = {
   failed: 'Échoué',
 }
 
+const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
 function StatusBadge({ status }: { status: string }) {
   const label = STATUS_LABELS[status] ?? status
   if (status === 'running') return <Badge color="green" variant="soft">{label}</Badge>
@@ -206,16 +208,28 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
   )
 }
 
+const LIMIT = 10
+
 export default function DashboardPage() {
   const router = useRouter()
   const { fetchProjects } = useProjects()
   const { isLoading: authLoading, email, name } = useAuth()
+
+  // Projets affichés sur la page courante
   const [projects, setProjects] = useState<Project[]>([])
+  // Total côté serveur (pour savoir si on est en mode local ou API)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [searching, setSearching] = useState(false)
 
   const fetchRef = useRef(fetchProjects)
   fetchRef.current = fetchProjects
 
+  const isLocalMode = total <= LIMIT
+
+  // Chargement initial : première page, limit 10
   useEffect(() => {
     if (authLoading) return
 
@@ -224,11 +238,13 @@ export default function DashboardPage() {
 
     const load = async () => {
       try {
-        const data = await fetchRef.current()
+        const result = await fetchRef.current({ page: 1, limit: LIMIT })
         if (!active) return
-        setProjects(data)
+        setProjects(result.data)
+        setTotal(result.total)
+        setPage(1)
 
-        const hasBuilding = data.some((p) => p.status === 'building')
+        const hasBuilding = result.data.some((p) => p.status === 'building')
         if (hasBuilding && !intervalId) {
           intervalId = setInterval(load, 3000)
         } else if (!hasBuilding && intervalId) {
@@ -250,13 +266,66 @@ export default function DashboardPage() {
     }
   }, [authLoading])
 
+  // Recherche via API (mode multi-pages) avec debounce 300 ms
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (isLocalMode) return
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    searchDebounce.current = setTimeout(async () => {
+      setSearching(true)
+      setPage(1)
+      try {
+        const result = await fetchRef.current({ page: 1, limit: LIMIT, search })
+        setProjects(result.data)
+        setTotal(result.total)
+      } catch {
+        // silencieux
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current) }
+  }, [search, isLocalMode])
+
+  // Changement de page (mode multi-pages)
+  const goToPage = async (p: number) => {
+    setSearching(true)
+    setPage(p)
+    try {
+      const result = await fetchRef.current({ page: p, limit: LIMIT, search })
+      setProjects(result.data)
+      setTotal(result.total)
+    } catch {
+      // silencieux
+    } finally {
+      setSearching(false)
+    }
+  }
+
   const handleUpdate = (updated: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)))
   }
 
   const handleDelete = (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id))
+    setTotal((t) => t - 1)
   }
+
+  const createdBy = name ?? email ?? ''
+
+  // Filtrage local (uniquement si tout tient sur une page)
+  const displayedProjects = isLocalMode && search.trim() !== '' ? (() => {
+    const q = normalize(search)
+    return projects.filter((p) =>
+      normalize(p.name).includes(q) ||
+      normalize(p.domain ?? '').includes(q) ||
+      normalize(STATUS_LABELS[p.status] ?? '').includes(q) ||
+      normalize(p.type ?? '').includes(q) ||
+      normalize(createdBy).includes(q)
+    )
+  })() : projects
+
+  const totalPages = Math.ceil(total / LIMIT)
 
   return (
     <Box>
@@ -278,45 +347,91 @@ export default function DashboardPage() {
 
       {loading ? (
         <Text size="2" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
-      ) : projects.length > 0 && (
-        <Box style={{ border: '1px solid var(--gray-4)', borderRadius: 6, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--gray-4)', backgroundColor: 'var(--gray-2)' }}>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nom</Text>
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sous-domaine</Text>
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</Text>
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé par</Text>
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</Text>
-                </th>
-                <th style={{ padding: '10px 16px', textAlign: 'left' }}>
-                  <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé le</Text>
-                </th>
-                <th style={{ padding: '10px 16px', width: 48 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <ProjectRow
-                  key={project.id}
-                  project={project}
-                  createdBy={name ?? email ?? '—'}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </tbody>
-          </table>
-        </Box>
+      ) : total > 0 && (
+        <>
+          <TextField.Root
+            size="2"
+            placeholder="Rechercher un service"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            mb="4"
+            style={{ maxWidth: 400 }}
+          />
+          <Box style={{ border: '1px solid var(--gray-4)', borderRadius: 6, overflow: 'hidden', opacity: searching ? 0.6 : 1 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--gray-4)', backgroundColor: 'var(--gray-2)' }}>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nom</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sous-domaine</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé par</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', textAlign: 'left' }}>
+                    <Text size="1" weight="medium" style={{ color: 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Créé le</Text>
+                  </th>
+                  <th style={{ padding: '10px 16px', width: 48 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {displayedProjects.length > 0 ? displayedProjects.map((project) => (
+                  <ProjectRow
+                    key={project.id}
+                    project={project}
+                    createdBy={createdBy || '—'}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                  />
+                )) : (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '24px 16px', textAlign: 'center' }}>
+                      <Text size="2" style={{ color: 'var(--gray-9)' }}>Aucun service ne correspond à la recherche.</Text>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Box>
+
+          {/* Pagination — uniquement si plus d'une page */}
+          {totalPages > 1 && (
+            <Flex align="center" justify="between" mt="3">
+              <Text size="2" style={{ color: 'var(--gray-10)' }}>
+                {total} service{total > 1 ? 's' : ''}
+              </Text>
+              <Flex gap="2" align="center">
+                <Button
+                  size="1" variant="soft" color="gray"
+                  disabled={page <= 1 || searching}
+                  style={{ cursor: page > 1 ? 'pointer' : 'default' }}
+                  onClick={() => goToPage(page - 1)}
+                >
+                  ←
+                </Button>
+                <Text size="2" style={{ color: 'var(--gray-11)' }}>
+                  {page} / {totalPages}
+                </Text>
+                <Button
+                  size="1" variant="soft" color="gray"
+                  disabled={page >= totalPages || searching}
+                  style={{ cursor: page < totalPages ? 'pointer' : 'default' }}
+                  onClick={() => goToPage(page + 1)}
+                >
+                  →
+                </Button>
+              </Flex>
+            </Flex>
+          )}
+        </>
       )}
     </Box>
   )
