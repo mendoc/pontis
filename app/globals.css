@@ -42,36 +42,40 @@ html:not(.dark) .radix-themes {
 
 /* Login — mobile first */
 .login-wrapper {
-  padding: 0 16px;
+  padding: 32px 16px;
+  box-sizing: border-box;
+  min-height: 100vh;
+  overflow-y: auto;
 }
 
 .login-box {
   width: 100%;
-  padding: 32px 24px;
+  min-height: 420px;
+  padding: 28px 20px;
   border: none !important;
   background-color: var(--color-background) !important;
 }
 
 .login-cgu {
   width: 100%;
-  padding: 16px 24px 0;
+  padding: 16px 20px 0;
 }
 
-/* Login — desktop */
+/* Login — tablette et desktop */
 @media (min-width: 768px) {
   .login-wrapper {
-    padding: 0;
+    padding: 40px 24px;
   }
 
   .login-box {
-    width: 560px;
-    max-height: 70vh;
-    padding: 48px 56px;
+    width: min(540px, calc(100vw - 48px));
+    padding: clamp(28px, 3.5vw, 48px) clamp(28px, 4.5vw, 56px);
     border: 1px solid var(--gray-6) !important;
+    background-color: var(--color-panel-solid) !important;
   }
 
   .login-cgu {
-    width: 560px;
-    padding: 20px 56px 0;
+    width: min(540px, calc(100vw - 48px));
+    padding: 16px clamp(28px, 4.5vw, 56px) 0;
   }
 }

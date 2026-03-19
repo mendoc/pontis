@@ -117,20 +117,14 @@ export default function ForgotPasswordPage() {
       align="center"
       justify="center"
       direction="column"
+      className="login-wrapper"
       style={{ minHeight: '100vh', backgroundColor: 'var(--color-background)' }}
     >
-      <Box
-        style={{
-          width: 400,
-          border: '1px solid var(--gray-6)',
-          padding: 40,
-          backgroundColor: 'var(--color-panel-solid)',
-        }}
-      >
+      <Box className="login-box">
         <Flex direction="column" gap="6">
           <Flex direction="column" gap="1">
-            <Heading size="6" weight="bold">Pontis</Heading>
-            <Text size="2" color="gray">
+            <Heading size="7" weight="bold">Pontis</Heading>
+            <Text size="3" color="gray">
               {step === 'email' && 'Réinitialisation du mot de passe'}
               {step === 'code' && 'Vérification du code'}
               {step === 'password' && 'Nouveau mot de passe'}
@@ -156,7 +150,8 @@ export default function ForgotPasswordPage() {
                     type="email"
                     placeholder="vous@exemple.com"
                     autoComplete="email"
-                    size="2"
+                    size="3"
+                    
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -165,7 +160,7 @@ export default function ForgotPasswordPage() {
                     Un code de vérification à 6 chiffres vous sera envoyé.
                   </Text>
                 </Flex>
-                <Button type="submit" size="2" variant="solid" color="gray" highContrast
+                <Button type="submit" size="3" variant="solid" color="gray" highContrast
                   style={{ width: '100%', cursor: 'pointer' }} disabled={isLoading}>
                   {isLoading ? 'Envoi…' : 'Envoyer le code'}
                 </Button>
@@ -187,7 +182,8 @@ export default function ForgotPasswordPage() {
                     inputMode="numeric"
                     placeholder="123456"
                     maxLength={6}
-                    size="2"
+                    size="3"
+                    
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                     required
@@ -196,11 +192,11 @@ export default function ForgotPasswordPage() {
                     Code envoyé à <strong>{email}</strong>. Valable 15 minutes.
                   </Text>
                 </Flex>
-                <Button type="submit" size="2" variant="solid" color="gray" highContrast
+                <Button type="submit" size="3" variant="solid" color="gray" highContrast
                   style={{ width: '100%', cursor: 'pointer' }} disabled={isLoading || code.length !== 6}>
                   {isLoading ? 'Vérification…' : 'Vérifier le code'}
                 </Button>
-                <Button type="button" variant="outline" color="gray" size="2"
+                <Button type="button" variant="outline" color="gray" size="3"
                   style={{ width: '100%', cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer' }}
                   disabled={resendCooldown > 0}
                   onClick={() => { setStep('email'); setCode(''); setError(null) }}>
@@ -223,7 +219,8 @@ export default function ForgotPasswordPage() {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="8 caractères minimum"
                     autoComplete="new-password"
-                    size="2"
+                    size="3"
+                    
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -246,7 +243,8 @@ export default function ForgotPasswordPage() {
                     type={showConfirm ? 'text' : 'password'}
                     placeholder="••••••••"
                     autoComplete="new-password"
-                    size="2"
+                    size="3"
+                    
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     required
@@ -260,7 +258,7 @@ export default function ForgotPasswordPage() {
                     </TextField.Slot>
                   </TextField.Root>
                 </Flex>
-                <Button type="submit" size="2" variant="solid" color="gray" highContrast
+                <Button type="submit" size="3" variant="solid" color="gray" highContrast
                   style={{ width: '100%', cursor: 'pointer' }} disabled={isLoading}>
                   {isLoading ? 'Enregistrement…' : 'Réinitialiser le mot de passe'}
                 </Button>

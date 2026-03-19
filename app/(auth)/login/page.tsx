@@ -63,21 +63,21 @@ export default function LoginPage() {
       align="center"
       justify="center"
       direction="column"
-      style={{ minHeight: '100vh', backgroundColor: 'var(--color-background)' }}
+      className="login-wrapper"
+      style={{ minHeight: '100vh', backgroundColor: 'var(--color-background)', boxSizing: 'border-box' }}
     >
       <Box
+        className="login-box"
         style={{
-          width: 400,
           border: '1px solid var(--gray-6)',
-          padding: 40,
           backgroundColor: 'var(--color-panel-solid)',
         }}
       >
         <Flex direction="column" gap="6">
           {/* En-tête */}
           <Flex direction="column" gap="1">
-            <Heading size="6" weight="bold">Pontis</Heading>
-            <Text size="2" color="gray">Connectez-vous à votre compte</Text>
+            <Heading size="7" weight="bold">Pontis</Heading>
+            <Text size="3" color="gray">Connectez-vous à votre compte</Text>
           </Flex>
 
           {/* Bouton GitLab */}
@@ -125,7 +125,7 @@ export default function LoginPage() {
                   type="email"
                   placeholder="vous@exemple.com"
                   autoComplete="email"
-                  size="2"
+                  size="3"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -146,7 +146,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  size="2"
+                  size="3"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -174,7 +174,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                size="2"
+                size="3"
                 variant="solid"
                 color="gray"
                 highContrast
@@ -197,7 +197,7 @@ export default function LoginPage() {
       </Box>
 
       {/* Notice CGU */}
-      <Box style={{ width: 400, padding: '20px 40px 0' }}>
+      <Box className="login-cgu">
         <Text size="1" color="gray" align="center" as="p" style={{ lineHeight: 1.6 }}>
           En continuant, vous acceptez les{' '}
           <Link href="/legal/terms" style={{ color: 'var(--gray-11)', textDecoration: 'underline' }}>

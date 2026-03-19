@@ -49,20 +49,14 @@ export default function RegisterPage() {
       align="center"
       justify="center"
       direction="column"
+      className="login-wrapper"
       style={{ minHeight: '100vh', backgroundColor: 'var(--color-background)' }}
     >
-      <Box
-        style={{
-          width: 400,
-          border: '1px solid var(--gray-6)',
-          padding: 40,
-          backgroundColor: 'var(--color-panel-solid)',
-        }}
-      >
+      <Box className="login-box">
         <Flex direction="column" gap="6">
           <Flex direction="column" gap="1">
-            <Heading size="6" weight="bold">Pontis</Heading>
-            <Text size="2" color="gray">Créez votre compte</Text>
+            <Heading size="7" weight="bold">Pontis</Heading>
+            <Text size="3" color="gray">Créez votre compte</Text>
           </Flex>
 
           {error && (
@@ -82,7 +76,8 @@ export default function RegisterPage() {
                   type="email"
                   placeholder="vous@exemple.com"
                   autoComplete="email"
-                  size="2"
+                  size="3"
+                  
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -98,7 +93,8 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="8 caractères minimum"
                   autoComplete="new-password"
-                  size="2"
+                  size="3"
+                  
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -125,7 +121,8 @@ export default function RegisterPage() {
                   type={showConfirm ? 'text' : 'password'}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  size="2"
+                  size="3"
+                  
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
@@ -145,7 +142,7 @@ export default function RegisterPage() {
 
               <Button
                 type="submit"
-                size="2"
+                size="3"
                 variant="solid"
                 color="gray"
                 highContrast
@@ -166,7 +163,7 @@ export default function RegisterPage() {
         </Flex>
       </Box>
 
-      <Box style={{ width: 400, padding: '20px 40px 0' }}>
+      <Box className="login-cgu">
         <Text size="1" color="gray" align="center" as="p" style={{ lineHeight: 1.6 }}>
           En continuant, vous acceptez les{' '}
           <Link href="/legal/terms" style={{ color: 'var(--gray-11)', textDecoration: 'underline' }}>
