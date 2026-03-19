@@ -11,6 +11,7 @@ export interface Project {
   status: string
   domain: string | null
   createdAt?: string
+  restartedAt?: string | null
 }
 
 export interface ProjectsPage {

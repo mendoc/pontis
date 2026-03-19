@@ -22,6 +22,7 @@ import { useAuth } from '@/app/context/auth'
 import pkg from '@/package.json'
 import { ProjectsProvider, useProjects, Project } from '@/app/context/projects'
 import { useThemeMode } from '@/app/components/ThemeProvider'
+import { ToastProvider } from '@/app/components/Toast'
 
 interface NavItem {
   label: string
@@ -323,6 +324,7 @@ function Topbar() {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProjectsProvider>
+      <ToastProvider>
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
         <Sidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -332,6 +334,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </main>
         </div>
       </div>
+      </ToastProvider>
     </ProjectsProvider>
   )
 }

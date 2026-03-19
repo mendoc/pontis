@@ -6,6 +6,7 @@ import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField, AlertDia
 import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, PlayIcon, Pencil1Icon, UploadIcon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
+import { useToast } from '@/app/components/Toast'
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
@@ -277,8 +278,10 @@ function DeleteDialog({ projectSlug, projectId }: { projectSlug: string; project
 export default function ProjectSettingsPage() {
   const { id } = useParams<{ id: string }>()
   const { getProject, renameProject, startProject, stopProject, restartProject } = useProjects()
+  const { toast } = useToast()
   const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [restartOpen, setRestartOpen] = useState(false)
   const { isLoading: authLoading } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -344,6 +347,14 @@ export default function ProjectSettingsPage() {
           <Field label="Créé le">
             <Text size="4" style={{ color: 'var(--gray-12)' }}>{createdAt}</Text>
           </Field>
+
+          {project.restartedAt && (
+            <Field label="Dernier redémarrage">
+              <Text size="4" style={{ color: 'var(--gray-12)' }}>
+                {new Date(project.restartedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </Field>
+          )}
         </Flex>
 
         {/* Colonne droite — actions */}
@@ -390,12 +401,7 @@ export default function ProjectSettingsPage() {
             style={{ cursor: 'pointer', justifyContent: 'flex-start', gap: 8 }}
             onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--orange-10)'; e.currentTarget.style.borderColor = 'var(--orange-8)' }}
             onMouseLeave={(e) => { e.currentTarget.style.color = ''; e.currentTarget.style.borderColor = '' }}
-            onClick={async () => {
-              setActionLoading('restart'); setActionError(null)
-              try { setProject(await restartProject(id)) }
-              catch (err) { setActionError(err instanceof Error ? err.message : 'Erreur') }
-              finally { setActionLoading(null) }
-            }}
+            onClick={() => { setActionError(null); setRestartOpen(true) }}
           >
             <ReloadIcon />{actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
           </Button>
@@ -404,6 +410,44 @@ export default function ProjectSettingsPage() {
           )}
         </Flex>
       </Flex>
+
+      {/* Modale de confirmation de redémarrage */}
+      <AlertDialog.Root open={restartOpen} onOpenChange={setRestartOpen}>
+        <AlertDialog.Content maxWidth="440px">
+          <AlertDialog.Title>Redémarrer le projet</AlertDialog.Title>
+          <AlertDialog.Description size="2" mb="4">
+            Le container sera supprimé et recréé depuis l'image existante. Toutes les données non persistées seront perdues. Cette action est irréversible.
+          </AlertDialog.Description>
+          <Flex gap="3" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={actionLoading === 'restart'} style={{ cursor: 'pointer' }}>
+                Annuler
+              </Button>
+            </AlertDialog.Cancel>
+            <Button
+              variant="solid" color="orange" highContrast
+              disabled={actionLoading === 'restart'}
+              style={{ cursor: actionLoading === 'restart' ? 'not-allowed' : 'pointer' }}
+              onClick={async () => {
+                setActionLoading('restart')
+                try {
+                  const updated = await restartProject(id)
+                  setProject(updated)
+                  setRestartOpen(false)
+                  toast(`${updated.name} a bien redémarré.`)
+                } catch (err) {
+                  setRestartOpen(false)
+                  toast(err instanceof Error ? err.message : 'Erreur lors du redémarrage.', 'error')
+                } finally {
+                  setActionLoading(null)
+                }
+              }}
+            >
+              {actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
 
       <Separator size="4" my="6" />
 

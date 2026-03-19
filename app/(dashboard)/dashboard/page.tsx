@@ -6,6 +6,7 @@ import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, Tex
 import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
+import { useToast } from '@/app/components/Toast'
 
 const STATUS_LABELS: Record<string, string> = {
   running: 'En ligne',
@@ -62,7 +63,9 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
 }) {
   const router = useRouter()
   const { startProject, stopProject, restartProject, deleteProject } = useProjects()
+  const { toast } = useToast()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [restartOpen, setRestartOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
@@ -177,7 +180,7 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
               )}
               <DropdownMenu.Item
                 disabled={isBusy || isStopped}
-                onClick={() => handleAction('restart', () => restartProject(project.id))}
+                onClick={() => setRestartOpen(true)}
               >
                 {actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
               </DropdownMenu.Item>
@@ -195,6 +198,43 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
           </DropdownMenu.Root>
         </td>
       </tr>
+
+      {/* Modale de confirmation de redémarrage */}
+      <AlertDialog.Root open={restartOpen} onOpenChange={setRestartOpen}>
+        <AlertDialog.Content maxWidth="440px">
+          <AlertDialog.Title>Redémarrer le projet</AlertDialog.Title>
+          <AlertDialog.Description size="2" mb="4">
+            Le container sera supprimé et recréé depuis l'image existante. Toutes les données non persistées seront perdues. Cette action est irréversible.
+          </AlertDialog.Description>
+          <Flex gap="3" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={actionLoading === 'restart'} style={{ cursor: 'pointer' }}>
+                Annuler
+              </Button>
+            </AlertDialog.Cancel>
+            <Button
+              variant="solid" color="orange" highContrast
+              disabled={actionLoading === 'restart'}
+              style={{ cursor: actionLoading === 'restart' ? 'not-allowed' : 'pointer' }}
+              onClick={async () => {
+                setActionLoading('restart')
+                try {
+                  const updated = await restartProject(project.id)
+                  onUpdate(updated)
+                  setRestartOpen(false)
+                  toast(`${project.name} a bien redémarré.`)
+                } catch {
+                  toast('Erreur lors du redémarrage.', 'error')
+                } finally {
+                  setActionLoading(null)
+                }
+              }}
+            >
+              {actionLoading === 'restart' ? 'Redémarrage…' : 'Redémarrer'}
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
 
       {/* Modale de confirmation de suppression */}
       <AlertDialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
