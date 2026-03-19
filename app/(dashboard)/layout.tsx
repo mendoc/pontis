@@ -17,6 +17,7 @@ import {
   SunIcon,
   MoonIcon,
   ChevronDownIcon,
+  ClockIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import pkg from '@/package.json'
@@ -28,6 +29,7 @@ interface NavItem {
   label: string
   icon: React.ReactNode
   href: string
+  comingSoon?: boolean
 }
 
 const globalNavItems: NavItem[] = [
@@ -35,17 +37,17 @@ const globalNavItems: NavItem[] = [
 ]
 
 const accountNavItems: NavItem[] = [
-  { label: 'Mon profil', icon: <PersonIcon />, href: '/profile' },
-  { label: 'Feedback', icon: <ChatBubbleIcon />, href: '/feedback' },
+  { label: 'Mon profil', icon: <PersonIcon />, href: '/profile', comingSoon: true },
+  { label: 'Feedback', icon: <ChatBubbleIcon />, href: '/feedback', comingSoon: true },
 ]
 
 const getProjectNavItems = (projectId: string): NavItem[] => [
   { label: 'Configuration', icon: <GearIcon />, href: `/projects/${projectId}/settings` },
-  { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments` },
-  { label: 'Logs', icon: <ReaderIcon />, href: `/projects/${projectId}/logs` },
-  { label: 'Terminal', icon: <DesktopIcon />, href: `/projects/${projectId}/terminal` },
-  { label: "Variables d'env", icon: <MixerHorizontalIcon />, href: `/projects/${projectId}/env` },
-  { label: 'Notifications', icon: <BellIcon />, href: `/projects/${projectId}/notifications` },
+  { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments`, comingSoon: true },
+  { label: 'Logs', icon: <ReaderIcon />, href: `/projects/${projectId}/logs`, comingSoon: true },
+  { label: 'Terminal', icon: <DesktopIcon />, href: `/projects/${projectId}/terminal`, comingSoon: true },
+  { label: "Variables d'env", icon: <MixerHorizontalIcon />, href: `/projects/${projectId}/env`, comingSoon: true },
+  { label: 'Notifications', icon: <BellIcon />, href: `/projects/${projectId}/notifications`, comingSoon: true },
 ]
 
 function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick: () => void }) {
@@ -63,10 +65,11 @@ function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boole
         paddingRight: 8,
         borderRadius: 4,
         backgroundColor: isActive ? 'var(--gray-4)' : undefined,
+        position: 'relative',
       }}
       onClick={onClick}
     >
-      <Flex align="center" gap="2" style={{ width: '100%' }}>
+      <Flex align="center" gap="2">
         <Box style={{ color: isActive ? 'var(--gray-12)' : 'var(--gray-8)', flexShrink: 0, display: 'flex' }}>
           {item.icon}
         </Box>
@@ -74,6 +77,11 @@ function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boole
           {item.label}
         </Text>
       </Flex>
+      {item.comingSoon && (
+        <Box style={{ position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-7)', display: 'flex' }}>
+          <ClockIcon />
+        </Box>
+      )}
     </Button>
   )
 }
