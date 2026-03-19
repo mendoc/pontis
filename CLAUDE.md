@@ -59,19 +59,27 @@ Trois rôles dans cet ordre :
 
 ## Appels API
 
-Tous les appels fetch utilisent le header `Authorization: Bearer ${accessToken}`. Endpoints principaux sous `/api/v1/` :
+**Pattern `authFetch`** (défini dans `ProjectsContext`) : wrapper autour de `fetch` qui injecte le header `Authorization: Bearer ${accessToken}`. Sur erreur 401, il appelle `refreshSession()` pour renouveler le token et retente la requête une seule fois. Toujours utiliser `authFetch` (via les fonctions du contexte) pour les appels authentifiés.
+
+Endpoints principaux sous `/api/v1/` :
 - Auth : `/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`, `/auth/reset-password`, `/auth/gitlab`
-- Projets : `/projects` (list/create), `/projects/{id}` (get/rename/delete), `/projects/{id}/start|stop|restart`
-- Upload : `/projects/upload/init`, `/upload/chunk`, `/upload/finalize`, `/upload/redeploy`
+- Projets : `/projects` (list — supporte `page`, `limit`, `search`, `sortBy`, `sortOrder`), `/projects/{id}` (get/rename/delete), `/projects/{id}/start|stop|restart`
+- Upload : `/projects/upload/init`, `/projects/upload/chunk`, `/projects/upload/finalize`, `/projects/upload/redeploy`
+- Slug : `/projects/check-slug?slug=` → `{ available: boolean }`
 - Ressources projet : `/projects/{id}/deployments`, `/logs`, `/env`, `/notifications`, `/terminal`
 - Debug (dev) : `/projects/{id}/debug/container-inspect|stop|remove|create|start`
 
-## Actions sensibles (restart)
+## Actions sensibles (restart / delete)
 
-Le redémarrage (`/projects/{id}/restart`) recrée le container Docker depuis l'image existante — les données non persistées sont perdues. Dans l'UI :
-- Un `AlertDialog` de confirmation est affiché avant tout redémarrage (depuis la liste et depuis les détails du projet)
-- Une notification Toast confirme le succès ou l'échec
-- Le champ `restartedAt` est mis à jour en base et affiché sous "Créé le" dans la vue settings
+**Redémarrage** (`/projects/{id}/restart`) : recrée le container Docker depuis l'image existante — données non persistées perdues. Un `AlertDialog` de confirmation est affiché, une Toast confirme le succès ou l'échec, et `restartedAt` est mis à jour en base.
+
+**Suppression** (`DELETE /projects/{id}`) : protégée par un `AlertDialog` qui exige que l'utilisateur saisisse le `slug` exact du projet pour valider. Redirige vers `/dashboard` après succès.
+
+## Pages "coming soon"
+
+Plusieurs rubriques de la navigation projet sont des stubs (`comingSoon: true` dans `getProjectNavItems`) — elles affichent l'icône `ClockIcon` et leur page ne contient qu'un squelette vide :
+- Déploiements, Logs, Terminal, Variables d'env, Notifications (`/projects/[id]/{deployments,logs,terminal,env,notifications}`)
+- Mon profil, Feedback (`/profile`, `/feedback`)
 
 ## Déploiement
 
