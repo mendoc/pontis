@@ -125,7 +125,7 @@ function LastDeploymentField({ projectId, deployment }: { projectId: string; dep
   )
 }
 
-function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedeployed?: () => void }) {
+function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedeployed?: (updatedProject: Project) => void }) {
   const { redeployProject, getProject } = useProjects()
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'building'>('idle')
@@ -158,24 +158,24 @@ function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedepl
     setPhase('uploading')
     setUploadProgress(0)
     try {
-      const result = await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
+      await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
 
       setPhase('building')
-      let status = result.status
-      while (status === 'building') {
+      let updated = await getProject(projectId)
+      while (updated.status === 'building') {
         await new Promise((r) => setTimeout(r, 2000))
-        const updated = await getProject(projectId)
-        status = updated.status
+        updated = await getProject(projectId)
       }
 
-      if (status === 'failed') {
+      onRedeployed?.(updated)
+
+      if (updated.status === 'failed') {
         setError('Le build a échoué. Vérifiez votre archive ZIP.')
         return
       }
 
       setSuccess(true)
       setFile(null)
-      onRedeployed?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du redéploiement')
     } finally {
@@ -510,7 +510,7 @@ export default function ProjectSettingsPage() {
         <Text size="3" style={{ color: 'var(--gray-9)' }}>
           Uploadez une nouvelle archive pour mettre à jour le site sans créer un nouveau projet.
         </Text>
-        <RedeployZone projectId={id} onRedeployed={loadLastDeployment} />
+        <RedeployZone projectId={id} onRedeployed={(updatedProject) => { setProject(updatedProject); loadLastDeployment() }} />
       </Flex>
 
       <Separator size="4" my="6" />

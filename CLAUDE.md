@@ -52,7 +52,9 @@ Trois rôles dans cet ordre :
 - Upload ZIP par chunks de 5 Mo : `init` → N×`chunk` → `finalize` (ou `redeploy`)
 - Polling toutes les 2 s après création/redéploiement jusqu'à `status !== 'building'`
 - `onProgress` callback utilisé pour afficher les phases (upload, build, SSL)
-- Type `Project` : `{ id, name, slug, type?, status, domain, createdAt?, restartedAt? }`
+- Type `Project` : `{ id, name, slug, type?, status, domain, createdAt?, restartedAt?, lastDeployedAt?, currentDeploymentId? }`
+- Type `Deployment` : `{ id, projectId, status: 'pending'|'building'|'success'|'failed', logs, imageTag, createdAt, finishedAt? }`
+- Type `DeploymentPage` : `{ data, total, page, limit, currentDeploymentId }`
 
 ## Composants partagés (app/components/)
 
@@ -68,7 +70,7 @@ Endpoints principaux sous `/api/v1/` :
 - Projets : `/projects` (list — supporte `page`, `limit`, `search`, `sortBy`, `sortOrder`), `/projects/{id}` (get/rename/delete), `/projects/{id}/start|stop|restart`
 - Upload : `/projects/upload/init`, `/projects/upload/chunk`, `/projects/upload/finalize`, `/projects/upload/redeploy`
 - Slug : `/projects/check-slug?slug=` → `{ available: boolean }`
-- Ressources projet : `/projects/{id}/deployments`, `/logs`, `/env`, `/notifications`, `/terminal`
+- Ressources projet : `/projects/{id}/deployments` (list), `/projects/{id}/deployments/{deploymentId}` (get/delete), `/projects/{id}/deployments/{deploymentId}/rollback` (POST), `/logs`, `/env`, `/notifications`, `/terminal`
 - Debug (dev) : `/projects/{id}/debug/container-inspect|stop|remove|create|start`
 
 ## Actions sensibles (restart / delete)
@@ -77,11 +79,17 @@ Endpoints principaux sous `/api/v1/` :
 
 **Suppression** (`DELETE /projects/{id}`) : protégée par un `AlertDialog` qui exige que l'utilisateur saisisse le `slug` exact du projet pour valider. Redirige vers `/dashboard` après succès.
 
+**Rollback** (`POST /projects/{id}/deployments/{deploymentId}/rollback`) : recrée le container depuis l'image d'un déploiement précédent. Disponible sur la page de liste et la page de détail d'un déploiement `success` non actif.
+
+**Suppression d'un déploiement** (`DELETE /projects/{id}/deployments/{deploymentId}`) : supprime l'image Docker associée. Protégée par un `AlertDialog`. Disponible uniquement sur les déploiements non actifs et non en production.
+
 ## Pages "coming soon"
 
 Plusieurs rubriques de la navigation projet sont des stubs (`comingSoon: true` dans `getProjectNavItems`) — elles affichent l'icône `ClockIcon` et leur page ne contient qu'un squelette vide :
-- Déploiements, Logs, Terminal, Variables d'env, Notifications (`/projects/[id]/{deployments,logs,terminal,env,notifications}`)
+- Logs, Terminal, Variables d'env, Notifications (`/projects/[id]/{logs,terminal,env,notifications}`)
 - Mon profil, Feedback (`/profile`, `/feedback`)
+
+**Pages pleinement implémentées :** Déploiements (`/projects/[id]/deployments`) avec liste filtrée, rollback et page de détail (`/projects/[id]/deployments/[deploymentId]`) avec logs, rollback et suppression. Le polling s'arrête automatiquement quand tous les déploiements sont dans un état terminal.
 
 ## Déploiement
 
