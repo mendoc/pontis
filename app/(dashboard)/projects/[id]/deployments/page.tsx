@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Box, Flex, Heading, Text, Table, Badge, Button } from '@radix-ui/themes'
+import { Box, Heading, Text, Table, Badge, Button, Flex, AlertDialog } from '@radix-ui/themes'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
+import { useToast } from '@/app/components/Toast'
 
 function StatusBadge({ status }: { status: Deployment['status'] }) {
   if (status === 'success') return <Badge color="green" variant="soft">Succès</Badge>
@@ -16,16 +17,21 @@ function StatusBadge({ status }: { status: Deployment['status'] }) {
 export default function DeploymentsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { fetchDeployments } = useProjects()
+  const { fetchDeployments, rollbackDeployment } = useProjects()
   const { isLoading: authLoading } = useAuth()
+  const { toast } = useToast()
   const [deployments, setDeployments] = useState<Deployment[]>([])
+  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [rollbackTarget, setRollbackTarget] = useState<Deployment | null>(null)
+  const [rolling, setRolling] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = async () => {
     try {
       const page = await fetchDeployments(id)
       setDeployments(page.data)
+      setCurrentDeploymentId(page.currentDeploymentId)
       return page.data
     } catch {
       return []
@@ -46,6 +52,21 @@ export default function DeploymentsPage() {
     }
     return () => { if (pollingRef.current) clearInterval(pollingRef.current) }
   }, [deployments])
+
+  const handleRollback = async () => {
+    if (!rollbackTarget) return
+    setRolling(true)
+    try {
+      await rollbackDeployment(id, rollbackTarget.id)
+      setRollbackTarget(null)
+      toast('Rollback lancé avec succès.')
+      await load()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Erreur lors du rollback.', 'error')
+    } finally {
+      setRolling(false)
+    }
+  }
 
   if (loading) return <Text size="3" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
 
@@ -72,7 +93,11 @@ export default function DeploymentsPage() {
           </Table.Header>
           <Table.Body>
             {deployments.map((dep, i) => (
-              <Table.Row key={dep.id}>
+              <Table.Row
+                key={dep.id}
+                onClick={() => router.push(`/projects/${id}/deployments/${dep.id}`)}
+                style={{ cursor: 'pointer' }}
+              >
                 <Table.Cell>
                   <Text size="2" style={{ color: 'var(--gray-11)', fontFamily: 'monospace' }}>
                     {deployments.length - i}
@@ -89,21 +114,45 @@ export default function DeploymentsPage() {
                   <StatusBadge status={dep.status} />
                 </Table.Cell>
                 <Table.Cell>
-                  <Button
-                    size="1"
-                    variant="ghost"
-                    color="gray"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => router.push(`/projects/${id}/deployments/${dep.id}`)}
-                  >
-                    Détails
-                  </Button>
+                  <Flex align="center" gap="2" justify="end">
+                    {dep.id === currentDeploymentId && (
+                      <Badge color="blue" variant="soft">En production</Badge>
+                    )}
+                    {dep.status === 'success' && dep.id !== currentDeploymentId && (
+                      <Button
+                        size="1"
+                        variant="ghost"
+                        color="gray"
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => { e.stopPropagation(); setRollbackTarget(dep) }}
+                      >
+                        Publier cette version
+                      </Button>
+                    )}
+                  </Flex>
                 </Table.Cell>
               </Table.Row>
             ))}
           </Table.Body>
         </Table.Root>
       )}
+
+      <AlertDialog.Root open={!!rollbackTarget} onOpenChange={(open) => { if (!open) setRollbackTarget(null) }}>
+        <AlertDialog.Content maxWidth="420px">
+          <AlertDialog.Title>Publier cette version</AlertDialog.Title>
+          <AlertDialog.Description size="2">
+            Le container sera recréé depuis l'image de ce déploiement. La version actuellement en production sera remplacée.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={rolling}>Annuler</Button>
+            </AlertDialog.Cancel>
+            <Button variant="solid" color="red" onClick={handleRollback} disabled={rolling} style={{ cursor: 'pointer' }}>
+              {rolling ? 'Publication en cours…' : 'Confirmer la publication'}
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
     </Box>
   )
 }

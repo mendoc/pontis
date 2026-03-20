@@ -13,6 +13,7 @@ export interface Project {
   createdAt?: string
   restartedAt?: string | null
   lastDeployedAt?: string | null
+  currentDeploymentId?: string | null
 }
 
 export interface ProjectsPage {
@@ -37,6 +38,7 @@ export interface DeploymentPage {
   total: number
   page: number
   limit: number
+  currentDeploymentId: string | null
 }
 
 type ProjectWithDeployment = Project & { deploymentId?: string }

@@ -252,7 +252,9 @@ function ProjectSwitcher() {
   if (!currentProjectId) return null
 
   const currentProject = projects.find((p) => p.id === currentProjectId)
-  const suffix = pathname.replace(/^\/projects\/[^/]+/, '') || '/settings'
+  const rawSuffix = pathname.replace(/^\/projects\/[^/]+/, '') || '/settings'
+  // Sur une page de détail (ex: /deployments/[id]), revenir à la liste parente
+  const suffix = rawSuffix.replace(/^(\/[^/]+)\/[^/]+$/, '$1') || '/settings'
 
   return (
     <DropdownMenu.Root>

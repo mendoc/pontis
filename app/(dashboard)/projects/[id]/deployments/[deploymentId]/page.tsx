@@ -23,10 +23,11 @@ function StatusBadge({ status }: { status: Deployment['status'] }) {
 export default function DeploymentDetailPage() {
   const { id, deploymentId } = useParams<{ id: string; deploymentId: string }>()
   const router = useRouter()
-  const { getDeployment, rollbackDeployment } = useProjects()
+  const { getDeployment, rollbackDeployment, getProject } = useProjects()
   const { isLoading: authLoading } = useAuth()
   const { toast } = useToast()
   const [deployment, setDeployment] = useState<Deployment | null>(null)
+  const [isCurrentDeployment, setIsCurrentDeployment] = useState(false)
   const [loading, setLoading] = useState(true)
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const [rolling, setRolling] = useState(false)
@@ -45,7 +46,9 @@ export default function DeploymentDetailPage() {
 
   useEffect(() => {
     if (authLoading) return
-    load().finally(() => setLoading(false))
+    Promise.all([load(), getProject(id)])
+      .then(([, project]) => setIsCurrentDeployment(project.currentDeploymentId === deploymentId))
+      .finally(() => setLoading(false))
   }, [id, deploymentId, authLoading])
 
   useEffect(() => {
@@ -95,7 +98,7 @@ export default function DeploymentDetailPage() {
           color="gray"
           size="1"
           style={{ cursor: 'pointer' }}
-          onClick={() => router.push(`/projects/${id}/deployments`)}
+          onClick={() => router.back()}
         >
           ← Retour
         </Button>
@@ -103,7 +106,8 @@ export default function DeploymentDetailPage() {
           Déploiement — {formatDate(deployment.createdAt)}
         </Heading>
         <StatusBadge status={deployment.status} />
-        {deployment.status === 'success' && (
+        {isCurrentDeployment && <Badge color="blue" variant="soft">En production</Badge>}
+        {deployment.status === 'success' && !isCurrentDeployment && (
           <Box style={{ marginLeft: 'auto' }}>
             <Button
               variant="outline"
@@ -112,7 +116,7 @@ export default function DeploymentDetailPage() {
               style={{ cursor: 'pointer' }}
               onClick={() => setRollbackOpen(true)}
             >
-              Rollback vers cette version
+              Publier cette version
             </Button>
           </Box>
         )}
@@ -123,7 +127,7 @@ export default function DeploymentDetailPage() {
         style={{
           background: 'var(--gray-2)',
           border: '1px solid var(--gray-4)',
-          borderRadius: 6,
+          borderRadius: 0,
           padding: 16,
           height: '60vh',
           overflowY: 'auto',
@@ -146,7 +150,7 @@ export default function DeploymentDetailPage() {
 
       <AlertDialog.Root open={rollbackOpen} onOpenChange={setRollbackOpen}>
         <AlertDialog.Content maxWidth="440px">
-          <AlertDialog.Title>Rollback vers cette version</AlertDialog.Title>
+          <AlertDialog.Title>Publier cette version</AlertDialog.Title>
           <AlertDialog.Description size="2" mb="4">
             Le container sera recréé depuis l'image de ce déploiement. Toutes les données non persistées seront perdues. Cette action est irréversible.
           </AlertDialog.Description>
@@ -164,7 +168,7 @@ export default function DeploymentDetailPage() {
               style={{ cursor: rolling ? 'not-allowed' : 'pointer' }}
               onClick={handleRollback}
             >
-              {rolling ? 'Rollback en cours…' : 'Confirmer le rollback'}
+              {rolling ? 'Publication en cours…' : 'Confirmer la publication'}
             </Button>
           </Flex>
         </AlertDialog.Content>
