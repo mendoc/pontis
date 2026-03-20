@@ -224,6 +224,7 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
                   setRestartOpen(false)
                   toast(`${project.name} a bien redémarré.`)
                 } catch {
+                  setRestartOpen(false)
                   toast('Erreur lors du redémarrage.', 'error')
                 } finally {
                   setActionLoading(null)
