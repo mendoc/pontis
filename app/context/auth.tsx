@@ -7,6 +7,7 @@ interface AuthState {
   userId: string | null
   email: string | null
   name: string | null
+  role: 'developer' | 'admin' | null
   isLoading: boolean
 }
 
@@ -18,12 +19,12 @@ interface AuthContextValue extends AuthState {
   refreshSession: () => Promise<string | null>
 }
 
-function decodeJwt(token: string): { email: string | null; name: string | null } {
+function decodeJwt(token: string): { email: string | null; name: string | null; role: 'developer' | 'admin' | null } {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
-    return { email: payload.email ?? null, name: payload.name ?? null }
+    return { email: payload.email ?? null, name: payload.name ?? null, role: payload.role ?? null }
   } catch {
-    return { email: null, name: null }
+    return { email: null, name: null, role: null }
   }
 }
 
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userId: null,
     email: null,
     name: null,
+    role: null,
     isLoading: true,
   })
   const inflightRefresh = useRef<Promise<string | null> | null>(null)
@@ -52,18 +54,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json()
-          const { email, name } = decodeJwt(data.accessToken)
-          setState({ accessToken: data.accessToken, userId: data.userId ?? null, email, name, isLoading: false })
+          const { email, name, role } = decodeJwt(data.accessToken)
+          setState({ accessToken: data.accessToken, userId: data.userId ?? null, email, name, role, isLoading: false })
           return data.accessToken as string
         } else {
-          setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
+          setState({ accessToken: null, userId: null, email: null, name: null, role: null, isLoading: false })
           if (!isPublicPath) window.location.replace('/login')
           return null
         }
       })
       .catch(() => {
         // Erreur réseau (API indisponible) : ne pas rediriger, le cookie reste valide
-        setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
+        setState({ accessToken: null, userId: null, email: null, name: null, role: null, isLoading: false })
         return null
       })
       .finally(() => {
@@ -95,8 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await res.json()
-    const { email: decodedEmail, name } = decodeJwt(data.accessToken)
-    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, isLoading: false })
+    const { email: decodedEmail, name, role } = decodeJwt(data.accessToken)
+    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, role, isLoading: false })
   }
 
   const register = async (email: string, password: string) => {
@@ -112,8 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const data = await res.json()
-    const { email: decodedEmail, name } = decodeJwt(data.accessToken)
-    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, isLoading: false })
+    const { email: decodedEmail, name, role } = decodeJwt(data.accessToken)
+    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, role, isLoading: false })
   }
 
   const resetPassword = async (email: string, code: string, password: string) => {
@@ -127,13 +129,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.error ?? 'Une erreur est survenue')
     }
     const data = await res.json()
-    const { email: decodedEmail, name } = decodeJwt(data.accessToken)
-    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, isLoading: false })
+    const { email: decodedEmail, name, role } = decodeJwt(data.accessToken)
+    setState({ accessToken: data.accessToken, userId: data.userId, email: decodedEmail, name, role, isLoading: false })
   }
 
   const logout = async () => {
     await fetch('/api/v1/auth/logout').catch(() => null)
-    setState({ accessToken: null, userId: null, email: null, name: null, isLoading: false })
+    setState({ accessToken: null, userId: null, email: null, name: null, role: null, isLoading: false })
   }
 
   return (

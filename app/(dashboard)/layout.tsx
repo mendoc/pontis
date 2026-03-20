@@ -20,6 +20,9 @@ import {
   ClockIcon,
   CopyIcon,
   CheckIcon,
+  BarChartIcon,
+  MagnifyingGlassIcon,
+  CubeIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import pkg from '@/package.json'
@@ -38,15 +41,19 @@ const globalNavItems: NavItem[] = [
   { label: 'Projets', icon: <LayersIcon />, href: '/dashboard' },
 ]
 
-const accountNavItems: NavItem[] = [
-  { label: 'Mon profil', icon: <PersonIcon />, href: '/profile', comingSoon: true },
-  { label: 'Feedback', icon: <ChatBubbleIcon />, href: '/feedback', comingSoon: true },
+const adminNavItems: NavItem[] = [
+  { label: 'Utilisateurs', icon: <PersonIcon />, href: '/admin/users' },
+  { label: 'Projets', icon: <LayersIcon />, href: '/admin/projects', comingSoon: true },
+  { label: 'Containers', icon: <CubeIcon />, href: '/admin/containers', comingSoon: true },
 ]
+
 
 const getProjectNavItems = (projectId: string): NavItem[] => [
   { label: 'Configuration', icon: <GearIcon />, href: `/projects/${projectId}/settings` },
   { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments` },
   { label: 'Logs', icon: <ReaderIcon />, href: `/projects/${projectId}/logs`, comingSoon: true },
+  { label: 'Métriques', icon: <BarChartIcon />, href: `/projects/${projectId}/metrics`, comingSoon: true },
+  { label: 'Analyse', icon: <MagnifyingGlassIcon />, href: `/projects/${projectId}/analysis`, comingSoon: true },
   { label: 'Terminal', icon: <DesktopIcon />, href: `/projects/${projectId}/terminal`, comingSoon: true },
   { label: "Variables d'env", icon: <MixerHorizontalIcon />, href: `/projects/${projectId}/env`, comingSoon: true },
   { label: 'Notifications', icon: <BellIcon />, href: `/projects/${projectId}/notifications`, comingSoon: true },
@@ -128,7 +135,7 @@ function NavSection({ title, items, pathname, router }: {
 function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { logout, role } = useAuth()
 
   const projectMatch = pathname.match(/^\/projects\/([^/]+)/)
   const currentProjectId = projectMatch?.[1] !== 'new' ? projectMatch?.[1] : undefined
@@ -175,11 +182,14 @@ function Sidebar() {
           </Box>
         )}
 
-        {/* Compte */}
-        <Box style={{ marginTop: 20 }}>
-          <Box style={{ borderTop: '1px solid var(--gray-4)', marginBottom: 16 }} />
-          <NavSection title="COMPTE" items={accountNavItems} pathname={pathname} router={router} />
-        </Box>
+        {/* Administration — visible uniquement pour les admins */}
+        {role === 'admin' && (
+          <Box style={{ marginTop: 20 }}>
+            <Box style={{ borderTop: '1px solid var(--gray-4)', marginBottom: 16 }} />
+            <NavSection title="ADMINISTRATION" items={adminNavItems} pathname={pathname} router={router} />
+          </Box>
+        )}
+
       </Box>
 
       {/* Déconnexion — fixée en bas */}
@@ -325,6 +335,7 @@ function ProjectSwitcher() {
 
 function Topbar() {
   const { email, name } = useAuth()
+  const router = useRouter()
   const rawName = name ?? email
   const displayName = rawName?.includes('@') ? rawName.split('@')[0] : rawName
   const initial = displayName ? displayName[0].toUpperCase() : '?'
@@ -346,27 +357,45 @@ function Topbar() {
       <Flex align="center" gap="6">
         <ThemeToggle />
         {displayName && (
-          <Flex align="center" gap="2">
-            <Box
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                backgroundColor: 'var(--gray-12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Text size="1" weight="bold" style={{ color: 'var(--gray-1)', lineHeight: 1 }}>
-                {initial}
-              </Text>
-            </Box>
-            <Text size="2" style={{ color: 'var(--gray-11)' }}>
-              {displayName}
-            </Text>
-          </Flex>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              <Flex align="center" gap="2" style={{ cursor: 'pointer' }}>
+                <Box
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--gray-12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Text size="1" weight="bold" style={{ color: 'var(--gray-1)', lineHeight: 1 }}>
+                    {initial}
+                  </Text>
+                </Box>
+                <Text size="2" style={{ color: 'var(--gray-11)' }}>
+                  {displayName}
+                </Text>
+              </Flex>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content align="end">
+              <DropdownMenu.Item onSelect={() => router.push('/profile')}>
+                <Flex align="center" gap="2">
+                  <PersonIcon />
+                  Mon profil
+                </Flex>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item onSelect={() => router.push('/feedback')}>
+                <Flex align="center" gap="2">
+                  <ChatBubbleIcon />
+                  Feedback
+                </Flex>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
         )}
       </Flex>
     </Flex>
