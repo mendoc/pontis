@@ -27,6 +27,7 @@ export default function NewProjectPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
   const [sslSecondsLeft, setSslSecondsLeft] = useState(30)
+  const [deploymentRef, setDeploymentRef] = useState<{ projectId: string; deploymentId: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // État de la vérification du slug
@@ -122,6 +123,7 @@ export default function NewProjectPage() {
     setPhase('uploading')
     try {
       const result = await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
+      if (result.deploymentId) setDeploymentRef({ projectId: result.id, deploymentId: result.deploymentId })
 
       // Phase build : polling jusqu'à running ou failed
       setPhase('building')
@@ -260,6 +262,13 @@ export default function NewProjectPage() {
                 {phase === 'building' && 'Build en cours…'}
                 {phase === 'ssl' && 'Génération du certificat SSL…'}
               </Text>
+              {phase === 'building' && deploymentRef && (
+                <button
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gray-10)', fontSize: 12 }}
+                  onClick={() => router.push(`/projects/${deploymentRef.projectId}/deployments/${deploymentRef.deploymentId}?newProject=1`)}>
+                  Voir les logs →
+                </button>
+              )}
               {phase === 'ssl' && (
                 <Text size="1" color="gray">{sslSecondsLeft}s</Text>
               )}

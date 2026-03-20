@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Box, Flex, Heading, Text, Badge, Button, AlertDialog } from '@radix-ui/themes'
 import { ArrowLeftIcon, ArrowUpIcon, ArrowDownIcon, CopyIcon, CheckIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
@@ -24,6 +24,8 @@ function StatusBadge({ status }: { status: Deployment['status'] }) {
 export default function DeploymentDetailPage() {
   const { id, deploymentId } = useParams<{ id: string; deploymentId: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isNewProject = searchParams.get('newProject') === '1'
   const { getDeployment, rollbackDeployment, getProject, deleteDeployment } = useProjects()
   const { isLoading: authLoading } = useAuth()
   const { toast } = useToast()
@@ -35,6 +37,7 @@ export default function DeploymentDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [sslCountdown, setSslCountdown] = useState<number | null>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const logsRef = useRef<HTMLDivElement>(null)
 
@@ -73,6 +76,21 @@ export default function DeploymentDetailPage() {
       logsRef.current.scrollTop = logsRef.current.scrollHeight
     }
   }, [deployment?.logs])
+
+  useEffect(() => {
+    if (!isNewProject || deployment?.status !== 'success') return
+    let s = 30
+    setSslCountdown(s)
+    const interval = setInterval(() => {
+      s -= 1
+      setSslCountdown(s)
+      if (s <= 0) {
+        clearInterval(interval)
+        router.push(`/projects/${id}/settings`)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [deployment?.status, isNewProject])
 
   const handleRollback = async () => {
     setRolling(true)
@@ -129,6 +147,14 @@ export default function DeploymentDetailPage() {
         {isCurrentDeployment && <Badge color="blue" variant="soft">En production</Badge>}
       </Flex>
       </Box>
+
+      {/* Bandeau SSL */}
+      {sslCountdown !== null && (
+        <Flex align="center" justify="between" mb="4" style={{ padding: '10px 14px', background: 'var(--gray-3)', border: '1px solid var(--gray-4)' }}>
+          <Text size="2" style={{ color: 'var(--gray-11)' }}>Génération du certificat SSL en cours…</Text>
+          <Text size="2" style={{ color: 'var(--gray-9)', fontFamily: 'monospace' }}>{sslCountdown}s</Text>
+        </Flex>
+      )}
 
       {/* Boutons d'action */}
       {(!isCurrentDeployment && (deployment.status === 'success' || deployment.status === 'failed')) && (

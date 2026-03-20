@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, ExternalLinkIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 import { useToast } from '@/app/components/Toast'
@@ -123,7 +123,7 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
               onClick={(e) => e.stopPropagation()}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
             >
-              {project.domain}
+              https://{project.domain}
               <ExternalLinkIcon width={12} height={12} />
             </a>
           ) : (
@@ -299,6 +299,8 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<Project[]>([])
   // Total côté serveur (pour savoir si on est en mode local ou API)
   const [total, setTotal] = useState(0)
+  // Total sans filtre de recherche — seul référent fiable pour isLocalMode
+  const [baseTotal, setBaseTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('createdAt')
@@ -309,7 +311,7 @@ export default function DashboardPage() {
   const fetchRef = useRef(fetchProjects)
   fetchRef.current = fetchProjects
 
-  const isLocalMode = total <= LIMIT
+  const isLocalMode = baseTotal <= LIMIT
 
   // Chargement initial : première page, limit 10
   useEffect(() => {
@@ -324,6 +326,7 @@ export default function DashboardPage() {
         if (!active) return
         setProjects(result.data)
         setTotal(result.total)
+        setBaseTotal(result.total)
         setPage(1)
 
         const hasBuilding = result.data.some((p) => p.status === 'building')
@@ -353,6 +356,7 @@ export default function DashboardPage() {
     const result = await fetchRef.current({ page: p, limit: LIMIT, search: s, sortBy: sb, sortOrder: so })
     setProjects(result.data)
     setTotal(result.total)
+    if (!s) setBaseTotal(result.total)
     setPage(p)
   }
 
@@ -377,6 +381,17 @@ export default function DashboardPage() {
       .catch(() => {})
       .finally(() => setSearching(false))
   }, [sortBy, sortOrder])
+
+  // Vider la recherche immédiatement (sans debounce)
+  const clearSearch = async () => {
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    setSearch('')
+    if (!isLocalMode) {
+      setSearching(true)
+      try { await apiFetch(1, '', sortBy, sortOrder) } catch { /* silencieux */ }
+      finally { setSearching(false) }
+    }
+  }
 
   // Changement de page
   const goToPage = async (p: number) => {
@@ -454,7 +469,7 @@ export default function DashboardPage() {
 
       {loading ? (
         <Text size="2" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
-      ) : total > 0 && (
+      ) : baseTotal > 0 && (
         <>
           <TextField.Root
             size="2"
@@ -463,7 +478,18 @@ export default function DashboardPage() {
             onChange={(e) => setSearch(e.target.value)}
             mb="4"
             style={{ maxWidth: 400 }}
-          />
+          >
+            {search && (
+              <TextField.Slot side="right">
+                <button
+                  onClick={clearSearch}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-9)', display: 'flex', alignItems: 'center', padding: 0 }}
+                >
+                  <Cross2Icon width={12} height={12} />
+                </button>
+              </TextField.Slot>
+            )}
+          </TextField.Root>
           <Box style={{ border: '1px solid var(--gray-4)', borderRadius: 6, overflow: 'hidden', opacity: searching ? 0.6 : 1 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>

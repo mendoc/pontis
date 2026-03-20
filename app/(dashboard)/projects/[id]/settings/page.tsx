@@ -127,9 +127,11 @@ function LastDeploymentField({ projectId, deployment }: { projectId: string; dep
 
 function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedeployed?: (updatedProject: Project) => void }) {
   const { redeployProject, getProject } = useProjects()
+  const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'building'>('idle')
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [deploymentId, setDeploymentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -158,7 +160,8 @@ function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedepl
     setPhase('uploading')
     setUploadProgress(0)
     try {
-      await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
+      const result = await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
+      if (result.deploymentId) setDeploymentId(result.deploymentId)
 
       setPhase('building')
       let updated = await getProject(projectId)
@@ -221,7 +224,16 @@ function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedepl
       )}
 
       {phase === 'building' && (
-        <Text size="2" style={{ color: 'var(--gray-10)' }}>Build en cours…</Text>
+        <Flex align="center" justify="between">
+          <Text size="2" style={{ color: 'var(--gray-10)' }}>Build en cours…</Text>
+          {deploymentId && (
+            <button
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gray-10)', fontSize: 12 }}
+              onClick={() => router.push(`/projects/${projectId}/deployments/${deploymentId}`)}>
+              Voir les logs →
+            </button>
+          )}
+        </Flex>
       )}
 
       {error && <Text size="2" style={{ color: 'var(--red-10)' }}>{error}</Text>}
@@ -375,7 +387,7 @@ export default function ProjectSettingsPage() {
             <Flex align="center" gap="3">
               {project.domain ? (
                 <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: 'var(--gray-12)', textDecoration: 'none' }}>
-                  {project.domain} ↗
+                  https://{project.domain} ↗
                 </a>
               ) : (
                 <Text size="4" style={{ color: 'var(--gray-9)' }}>—</Text>

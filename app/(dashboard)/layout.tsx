@@ -293,7 +293,7 @@ function ProjectSwitcher() {
           onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
           onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
         >
-          {currentProject.domain}
+          https://{currentProject.domain}
         </a>
       </Text>
     )}
