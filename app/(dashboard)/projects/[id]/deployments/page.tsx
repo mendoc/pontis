@@ -35,7 +35,7 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
 export default function DeploymentsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { fetchDeployments, rollbackDeployment } = useProjects()
+  const { fetchDeployments, rollbackDeployment, getProject } = useProjects()
   const { isLoading: authLoading } = useAuth()
   const { toast } = useToast()
   const [deployments, setDeployments] = useState<Deployment[]>([])
@@ -61,7 +61,10 @@ export default function DeploymentsPage() {
 
   useEffect(() => {
     if (authLoading) return
-    load().finally(() => setLoading(false))
+    Promise.all([
+      load(),
+      getProject(id).then((p) => { document.title = `Déploiements | ${p.name} | Pontis` }).catch(() => {}),
+    ]).finally(() => setLoading(false))
   }, [id, authLoading])
 
   useEffect(() => {

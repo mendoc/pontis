@@ -54,7 +54,10 @@ export default function DeploymentDetailPage() {
   useEffect(() => {
     if (authLoading) return
     Promise.all([load(), getProject(id)])
-      .then(([, project]) => setIsCurrentDeployment(project.currentDeploymentId === deploymentId))
+      .then(([, project]) => {
+        setIsCurrentDeployment(project.currentDeploymentId === deploymentId)
+        document.title = `Déploiement | ${project.name} | Pontis`
+      })
       .finally(() => setLoading(false))
   }, [id, deploymentId, authLoading])
 

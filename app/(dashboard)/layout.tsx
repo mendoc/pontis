@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Box, Flex, Text, Heading, Button, DropdownMenu } from '@radix-ui/themes'
 import {
@@ -18,6 +18,8 @@ import {
   MoonIcon,
   ChevronDownIcon,
   ClockIcon,
+  CopyIcon,
+  CheckIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import pkg from '@/package.json'
@@ -240,6 +242,8 @@ function ProjectSwitcher() {
   const router = useRouter()
   const { fetchProjects, projects } = useProjects()
   const { isLoading: authLoading } = useAuth()
+  const [domainHovered, setDomainHovered] = useState(false)
+  const [domainCopied, setDomainCopied] = useState(false)
 
   const match = pathname.match(/^\/projects\/([^/]+)/)
   const currentProjectId = match?.[1] !== 'new' ? match?.[1] : undefined
@@ -280,22 +284,40 @@ function ProjectSwitcher() {
       </DropdownMenu.Content>
     </DropdownMenu.Root>
     {currentProject?.domain && (
-      <Text
-        size="1"
-        style={{ color: 'var(--gray-9)' }}
-        asChild
+      <Flex
+        align="center" gap="1"
+        onMouseEnter={() => setDomainHovered(true)}
+        onMouseLeave={() => { setDomainHovered(false) }}
       >
-        <a
-          href={`https://${currentProject.domain}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--gray-9)', textDecoration: 'none' }}
-          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+        <Text size="1" asChild style={{ color: 'var(--gray-9)' }}>
+          <a
+            href={`https://${currentProject.domain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--gray-9)', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+          >
+            https://{currentProject.domain}
+          </a>
+        </Text>
+        <button
+          style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            display: 'flex', alignItems: 'center',
+            color: domainCopied ? 'var(--green-9)' : 'var(--gray-8)',
+            opacity: domainHovered || domainCopied ? 1 : 0,
+            transition: 'opacity 0.15s',
+          }}
+          onClick={() => {
+            navigator.clipboard.writeText(`https://${currentProject.domain}`)
+            setDomainCopied(true)
+            setTimeout(() => setDomainCopied(false), 2000)
+          }}
         >
-          https://{currentProject.domain}
-        </a>
-      </Text>
+          {domainCopied ? <CheckIcon width={11} height={11} /> : <CopyIcon width={11} height={11} />}
+        </button>
+      </Flex>
     )}
     </Flex>
   )

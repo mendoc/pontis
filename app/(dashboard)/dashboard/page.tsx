@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, ExternalLinkIcon, Cross2Icon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, CopyIcon, CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 import { useToast } from '@/app/components/Toast'
@@ -65,6 +65,7 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
   const { startProject, stopProject, restartProject, deleteProject } = useProjects()
   const { toast } = useToast()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [domainCopied, setDomainCopied] = useState(false)
   const [restartOpen, setRestartOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
@@ -114,18 +115,28 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
         </td>
 
         {/* Sous-domaine */}
-        <td style={{ padding: '12px 16px' }}>
+        <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
           {project.domain ? (
-            <a
-              href={`https://${project.domain}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
-            >
-              https://{project.domain}
-              <ExternalLinkIcon width={12} height={12} />
-            </a>
+            <Flex align="center" gap="2">
+              <a
+                href={`https://${project.domain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
+              >
+                https://{project.domain}
+              </a>
+              <button
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gray-8)', display: 'flex', alignItems: 'center' }}
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://${project.domain}`)
+                  setDomainCopied(true)
+                  setTimeout(() => setDomainCopied(false), 2000)
+                }}
+              >
+                {domainCopied ? <CheckIcon style={{ color: 'var(--green-9)' }} /> : <CopyIcon />}
+              </button>
+            </Flex>
           ) : (
             <Text size="2" style={{ color: 'var(--gray-8)' }}>—</Text>
           )}
@@ -311,6 +322,8 @@ export default function DashboardPage() {
   const fetchRef = useRef(fetchProjects)
   fetchRef.current = fetchProjects
 
+  useEffect(() => { document.title = 'Vue d\'ensemble | Pontis' }, [])
+
   const isLocalMode = baseTotal <= LIMIT
 
   // Chargement initial : première page, limit 10
@@ -451,9 +464,12 @@ export default function DashboardPage() {
 
   return (
     <Box>
-      <Heading size="7" mb="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
+      <Heading size="7" mb="2" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
         Vue d'ensemble
       </Heading>
+      <Text size="2" mb="6" style={{ color: 'var(--gray-9)', display: 'block' }}>
+        Tous vos projets déployés sur Pontis.
+      </Text>
 
       {/* Bouton créer en pointillés — toujours visible */}
       <Flex

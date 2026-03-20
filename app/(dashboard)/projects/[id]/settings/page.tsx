@@ -218,7 +218,7 @@ export default function ProjectSettingsPage() {
   useEffect(() => {
     if (authLoading) return
     Promise.all([
-      getProject(id).then(setProject).catch(() => {}),
+      getProject(id).then((p) => { setProject(p); document.title = `Configuration | ${p.name} | Pontis` }).catch(() => {}),
       loadLastDeployment(),
     ]).finally(() => setLoading(false))
   }, [id, authLoading])
@@ -239,7 +239,7 @@ export default function ProjectSettingsPage() {
     <Box style={{ maxWidth: 800 }}>
       <Heading size="7" mb="2" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>Configuration</Heading>
       <Text size="2" mb="6" style={{ color: 'var(--gray-9)', display: 'block' }}>
-        Gérez les paramètres et le déploiement de votre projet.
+        Paramètres, déploiement et gestion du projet.
       </Text>
 
       <Flex gap="8" align="start">
@@ -263,12 +263,12 @@ export default function ProjectSettingsPage() {
             <Flex align="center" gap="3">
               {project.domain ? (
                 <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 16, color: 'var(--gray-12)', textDecoration: 'none' }}>
-                  https://{project.domain} ↗
+                  https://{project.domain}
                 </a>
               ) : (
                 <Text size="4" style={{ color: 'var(--gray-9)' }}>—</Text>
               )}
-              {project.domain && <CopyButton value={project.domain} />}
+              {project.domain && <CopyButton value={`https://${project.domain}`} />}
             </Flex>
           </Field>
 

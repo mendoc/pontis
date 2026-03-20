@@ -22,6 +22,8 @@ export default function NewProjectPage() {
   const router = useRouter()
   const { createProject, checkSlug, getProject } = useProjects()
   const [name, setName] = useState('')
+
+  useEffect(() => { document.title = 'Nouveau projet | Pontis' }, [])
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
