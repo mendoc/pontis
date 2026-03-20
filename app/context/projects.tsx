@@ -14,6 +14,7 @@ export interface Project {
   restartedAt?: string | null
   lastDeployedAt?: string | null
   currentDeploymentId?: string | null
+  user?: { id: string; email: string; name: string | null }
 }
 
 export interface ProjectsPage {

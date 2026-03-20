@@ -201,7 +201,7 @@ export default function ProjectSettingsPage() {
   const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [restartOpen, setRestartOpen] = useState(false)
-  const { isLoading: authLoading } = useAuth()
+  const { isLoading: authLoading, role } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastDeployment, setLastDeployment] = useState<Deployment | null>(null)
@@ -278,6 +278,17 @@ export default function ProjectSettingsPage() {
             {project.status === 'failed' && <Badge color="red" variant="soft">Échoué</Badge>}
             {project.status === 'stopped' && <Badge color="gray" variant="soft">Arrêté</Badge>}
           </Field>
+
+          {role === 'admin' && project.user && (
+            <Field label="Propriétaire">
+              <Text size="4" style={{ color: 'var(--gray-12)' }}>
+                {project.user.name
+                  ? <>{project.user.name} <span style={{ color: 'var(--gray-9)', fontSize: 13 }}>({project.user.email})</span></>
+                  : project.user.email
+                }
+              </Text>
+            </Field>
+          )}
 
           <Field label="Créé le">
             <Text size="4" style={{ color: 'var(--gray-12)' }}>{createdAt}</Text>

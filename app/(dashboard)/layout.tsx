@@ -23,6 +23,7 @@ import {
   BarChartIcon,
   MagnifyingGlassIcon,
   CubeIcon,
+  LockClosedIcon,
 } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import pkg from '@/package.json'
@@ -43,8 +44,9 @@ const globalNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
   { label: 'Utilisateurs', icon: <PersonIcon />, href: '/admin/users' },
-  { label: 'Projets', icon: <LayersIcon />, href: '/admin/projects', comingSoon: true },
+  { label: 'Projets', icon: <LayersIcon />, href: '/admin/projects' },
   { label: 'Containers', icon: <CubeIcon />, href: '/admin/containers', comingSoon: true },
+  { label: 'Rôles et permissions', icon: <LockClosedIcon />, href: '/admin/roles', comingSoon: true },
 ]
 
 
@@ -252,6 +254,7 @@ function ProjectSwitcher() {
   const router = useRouter()
   const { fetchProjects, projects } = useProjects()
   const { isLoading: authLoading } = useAuth()
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [domainHovered, setDomainHovered] = useState(false)
   const [domainCopied, setDomainCopied] = useState(false)
 
@@ -260,12 +263,15 @@ function ProjectSwitcher() {
 
   useEffect(() => {
     if (!currentProjectId || authLoading) return
-    fetchProjects().catch(() => {})
+    fetchProjects().catch(() => {}).finally(() => setProjectsLoaded(true))
   }, [currentProjectId, authLoading])
 
   if (!currentProjectId) return null
 
   const currentProject = projects.find((p) => p.id === currentProjectId)
+
+  // Admin consultant un projet qui ne lui appartient pas — pas de switcher
+  if (projectsLoaded && !currentProject) return null
   const rawSuffix = pathname.replace(/^\/projects\/[^/]+/, '') || '/settings'
   // Sur une page de détail (ex: /deployments/[id]), revenir à la liste parente
   const suffix = rawSuffix.replace(/^(\/[^/]+)\/[^/]+$/, '$1') || '/settings'
