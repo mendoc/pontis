@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Box, Flex, Heading, Text, Badge, Button, AlertDialog } from '@radix-ui/themes'
-import { ArrowLeftIcon } from '@radix-ui/react-icons'
+import { ArrowLeftIcon, ArrowUpIcon, ArrowDownIcon, CopyIcon, CheckIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
@@ -24,7 +24,7 @@ function StatusBadge({ status }: { status: Deployment['status'] }) {
 export default function DeploymentDetailPage() {
   const { id, deploymentId } = useParams<{ id: string; deploymentId: string }>()
   const router = useRouter()
-  const { getDeployment, rollbackDeployment, getProject } = useProjects()
+  const { getDeployment, rollbackDeployment, getProject, deleteDeployment } = useProjects()
   const { isLoading: authLoading } = useAuth()
   const { toast } = useToast()
   const [deployment, setDeployment] = useState<Deployment | null>(null)
@@ -32,6 +32,9 @@ export default function DeploymentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const [rolling, setRolling] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [copied, setCopied] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const logsRef = useRef<HTMLDivElement>(null)
 
@@ -76,13 +79,27 @@ export default function DeploymentDetailPage() {
     try {
       await rollbackDeployment(id, deploymentId)
       setRollbackOpen(false)
-      toast('Rollback lancé avec succès.')
-      router.push(`/projects/${id}/deployments`)
+      toast('Version publiée avec succès.')
+      setIsCurrentDeployment(true)
     } catch (err) {
       setRollbackOpen(false)
-      toast(err instanceof Error ? err.message : 'Erreur lors du rollback.', 'error')
+      toast(err instanceof Error ? err.message : 'Erreur lors de la publication.', 'error')
     } finally {
       setRolling(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await deleteDeployment(id, deploymentId)
+      toast('Déploiement supprimé.')
+      router.push(`/projects/${id}/deployments`)
+    } catch (err) {
+      setDeleteOpen(false)
+      toast(err instanceof Error ? err.message : 'Erreur lors de la suppression.', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -92,7 +109,8 @@ export default function DeploymentDetailPage() {
   const isActive = deployment.status === 'building' || deployment.status === 'pending'
 
   return (
-    <Box style={{ maxWidth: 900 }}>
+    <Box>
+      <Box style={{ maxWidth: 900 }}>
       <Button
         variant="ghost"
         color="gray"
@@ -109,19 +127,66 @@ export default function DeploymentDetailPage() {
         </Heading>
         <StatusBadge status={deployment.status} />
         {isCurrentDeployment && <Badge color="blue" variant="soft">En production</Badge>}
-        {deployment.status === 'success' && !isCurrentDeployment && (
-          <Box style={{ marginLeft: 'auto' }}>
-            <Button
-              variant="outline"
-              color="gray"
-              size="2"
-              style={{ cursor: 'pointer' }}
-              onClick={() => setRollbackOpen(true)}
-            >
+      </Flex>
+      </Box>
+
+      {/* Boutons d'action */}
+      {(!isCurrentDeployment && (deployment.status === 'success' || deployment.status === 'failed')) && (
+        <Flex gap="2" mb="4">
+          {deployment.status === 'success' && (
+            <Button variant="outline" color="gray" size="2" style={{ cursor: 'pointer' }} onClick={() => setRollbackOpen(true)}>
               Publier cette version
             </Button>
-          </Box>
-        )}
+          )}
+          <Button variant="outline" color="red" size="2" style={{ cursor: 'pointer' }} onClick={() => setDeleteOpen(true)}>
+            Supprimer
+          </Button>
+        </Flex>
+      )}
+
+      {/* Barre de titre des logs */}
+      <Flex
+        align="center"
+        justify="between"
+        style={{
+          border: '1px solid var(--gray-4)',
+          borderBottom: 'none',
+          padding: '8px 12px',
+          background: 'var(--gray-3)',
+        }}
+      >
+        <Text size="2" weight="medium" style={{ color: 'var(--gray-11)' }}>Logs de déploiement</Text>
+        <Flex align="center" gap="5">
+          <Button
+            size="1" variant="ghost" color={copied ? 'green' : 'gray'}
+            style={{ cursor: 'pointer' }}
+            onClick={() => {
+              if (deployment.logs) {
+                navigator.clipboard.writeText(deployment.logs)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }
+            }}
+          >
+            {copied ? <><CheckIcon /> Copié</> : <><CopyIcon /> Copier</>}
+          </Button>
+          <Button
+            size="1" variant="ghost" color="gray"
+            title="Aller en haut"
+            style={{ cursor: 'pointer' }}
+            onClick={() => { if (logsRef.current) logsRef.current.scrollTop = 0 }}
+          >
+            <ArrowUpIcon />
+          </Button>
+          <Button
+            size="1" variant="ghost" color="gray"
+            title="Aller en bas"
+            style={{ cursor: 'pointer' }}
+            onClick={() => { if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight }}
+          >
+            <ArrowDownIcon />
+          </Button>
+        </Flex>
       </Flex>
 
       <Box
@@ -171,6 +236,31 @@ export default function DeploymentDetailPage() {
               onClick={handleRollback}
             >
               {rolling ? 'Publication en cours…' : 'Confirmer la publication'}
+            </Button>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
+
+      <AlertDialog.Root open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialog.Content maxWidth="440px">
+          <AlertDialog.Title>Supprimer ce déploiement</AlertDialog.Title>
+          <AlertDialog.Description size="2" mb="4">
+            L'image Docker associée sera supprimée définitivement. Cette action est irréversible.
+          </AlertDialog.Description>
+          <Flex gap="3" justify="end">
+            <AlertDialog.Cancel>
+              <Button variant="soft" color="gray" disabled={deleting} style={{ cursor: 'pointer' }}>
+                Annuler
+              </Button>
+            </AlertDialog.Cancel>
+            <Button
+              variant="solid"
+              color="red"
+              disabled={deleting}
+              style={{ cursor: deleting ? 'not-allowed' : 'pointer' }}
+              onClick={handleDelete}
+            >
+              {deleting ? 'Suppression…' : 'Supprimer'}
             </Button>
           </Flex>
         </AlertDialog.Content>

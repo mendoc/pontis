@@ -66,10 +66,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         <RadixToast.Viewport
           style={{
             position: 'fixed',
-            bottom: 24,
-            right: 24,
+            top: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
             display: 'flex',
             flexDirection: 'column',
+            alignItems: 'center',
             gap: 8,
             zIndex: 9999,
             outline: 'none',

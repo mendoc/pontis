@@ -58,6 +58,7 @@ interface ProjectsContextValue {
   fetchDeployments: (projectId: string, opts?: { page?: number; limit?: number }) => Promise<DeploymentPage>
   getDeployment: (projectId: string, deploymentId: string) => Promise<Deployment>
   rollbackDeployment: (projectId: string, deploymentId: string) => Promise<Project>
+  deleteDeployment: (projectId: string, deploymentId: string) => Promise<void>
 }
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null)
@@ -253,8 +254,16 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return res.json()
   }
 
+  const deleteDeployment = async (projectId: string, deploymentId: string): Promise<void> => {
+    const res = await authFetch(`/api/v1/projects/${projectId}/deployments/${deploymentId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors de la suppression')
+    }
+  }
+
   return (
-    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug, deleteProject, fetchDeployments, getDeployment, rollbackDeployment }}>
+    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug, deleteProject, fetchDeployments, getDeployment, rollbackDeployment, deleteDeployment }}>
       {children}
     </ProjectsContext.Provider>
   )

@@ -257,15 +257,16 @@ function ProjectSwitcher() {
   const suffix = rawSuffix.replace(/^(\/[^/]+)\/[^/]+$/, '$1') || '/settings'
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        <Button variant="ghost" color="gray" size="2" style={{ cursor: 'pointer', gap: 6, height: 36 }}>
-          <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
-            {currentProject?.name ?? '…'}
-          </Text>
-          <ChevronDownIcon style={{ color: 'var(--gray-9)' }} />
-        </Button>
-      </DropdownMenu.Trigger>
+    <Flex align="center" gap="4">
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          <Button variant="ghost" color="gray" size="2" style={{ cursor: 'pointer', gap: 6, height: 36 }}>
+            <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
+              {currentProject?.name ?? '…'}
+            </Text>
+            <ChevronDownIcon style={{ color: 'var(--gray-9)' }} />
+          </Button>
+        </DropdownMenu.Trigger>
       <DropdownMenu.Content>
         {projects.map((p) => (
           <DropdownMenu.Item
@@ -278,6 +279,25 @@ function ProjectSwitcher() {
         ))}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
+    {currentProject?.domain && (
+      <Text
+        size="1"
+        style={{ color: 'var(--gray-9)' }}
+        asChild
+      >
+        <a
+          href={`https://${currentProject.domain}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: 'var(--gray-9)', textDecoration: 'none' }}
+          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+        >
+          {currentProject.domain}
+        </a>
+      </Text>
+    )}
+    </Flex>
   )
 }
 
