@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField, AlertDialog } from '@radix-ui/themes'
 import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, PlayIcon, Pencil1Icon, UploadIcon } from '@radix-ui/react-icons'
-import { useProjects, Project } from '@/app/context/projects'
+import { useProjects, Project, Deployment } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 import { useToast } from '@/app/components/Toast'
 
@@ -95,7 +95,37 @@ function RenameField({ initialName, onSave }: { initialName: string; onSave: (na
   )
 }
 
-function RedeployZone({ projectId }: { projectId: string }) {
+function DeploymentStatusBadge({ status }: { status: Deployment['status'] }) {
+  if (status === 'success') return <Badge color="green" variant="soft">Succès</Badge>
+  if (status === 'failed') return <Badge color="red" variant="soft">Échec</Badge>
+  if (status === 'building') return <Badge color="orange" variant="soft">En cours</Badge>
+  return <Badge color="gray" variant="soft">En attente</Badge>
+}
+
+function LastDeploymentField({ projectId, deployment }: { projectId: string; deployment: Deployment }) {
+  const router = useRouter()
+  const date = new Date(deployment.createdAt).toLocaleDateString('fr-FR', {
+    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+
+  return (
+    <Flex align="center" gap="3" style={{ flexWrap: 'wrap' }}>
+      <DeploymentStatusBadge status={deployment.status} />
+      <Text size="3" style={{ color: 'var(--gray-11)' }}>{date}</Text>
+      <Button
+        variant="ghost"
+        color="gray"
+        size="1"
+        style={{ cursor: 'pointer', padding: '0 4px', height: 20 }}
+        onClick={() => router.push(`/projects/${projectId}/deployments/${deployment.id}`)}
+      >
+        <Text size="2" style={{ color: 'var(--gray-10)' }}>Voir les logs →</Text>
+      </Button>
+    </Flex>
+  )
+}
+
+function RedeployZone({ projectId, onRedeployed }: { projectId: string; onRedeployed?: () => void }) {
   const { redeployProject, getProject } = useProjects()
   const [file, setFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<'idle' | 'uploading' | 'building'>('idle')
@@ -128,10 +158,10 @@ function RedeployZone({ projectId }: { projectId: string }) {
     setPhase('uploading')
     setUploadProgress(0)
     try {
-      const project = await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
+      const result = await redeployProject(projectId, file, (pct) => setUploadProgress(pct))
 
       setPhase('building')
-      let status = project.status
+      let status = result.status
       while (status === 'building') {
         await new Promise((r) => setTimeout(r, 2000))
         const updated = await getProject(projectId)
@@ -145,6 +175,7 @@ function RedeployZone({ projectId }: { projectId: string }) {
 
       setSuccess(true)
       setFile(null)
+      onRedeployed?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du redéploiement')
     } finally {
@@ -277,7 +308,7 @@ function DeleteDialog({ projectSlug, projectId }: { projectSlug: string; project
 
 export default function ProjectSettingsPage() {
   const { id } = useParams<{ id: string }>()
-  const { getProject, renameProject, startProject, stopProject, restartProject } = useProjects()
+  const { getProject, renameProject, startProject, stopProject, restartProject, fetchDeployments } = useProjects()
   const { toast } = useToast()
   const [actionLoading, setActionLoading] = useState<'start' | 'stop' | 'restart' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -285,10 +316,23 @@ export default function ProjectSettingsPage() {
   const { isLoading: authLoading } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
+  const [lastDeployment, setLastDeployment] = useState<Deployment | null>(null)
+
+  const loadLastDeployment = async () => {
+    try {
+      const page = await fetchDeployments(id, { limit: 1 })
+      setLastDeployment(page.data[0] ?? null)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     if (authLoading) return
-    getProject(id).then(setProject).catch(() => {}).finally(() => setLoading(false))
+    Promise.all([
+      getProject(id).then(setProject).catch(() => {}),
+      loadLastDeployment(),
+    ]).finally(() => setLoading(false))
   }, [id, authLoading])
 
   if (loading) {
@@ -305,7 +349,10 @@ export default function ProjectSettingsPage() {
 
   return (
     <Box style={{ maxWidth: 800 }}>
-      <Heading size="7" mb="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>Configuration</Heading>
+      <Heading size="7" mb="2" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>Configuration</Heading>
+      <Text size="2" mb="6" style={{ color: 'var(--gray-9)', display: 'block' }}>
+        Gérez les paramètres et le déploiement de votre projet.
+      </Text>
 
       <Flex gap="8" align="start">
         {/* Colonne gauche — détails */}
@@ -353,6 +400,12 @@ export default function ProjectSettingsPage() {
               <Text size="4" style={{ color: 'var(--gray-12)' }}>
                 {new Date(project.restartedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </Text>
+            </Field>
+          )}
+
+          {lastDeployment && (
+            <Field label="Dernier déploiement">
+              <LastDeploymentField projectId={id} deployment={lastDeployment} />
             </Field>
           )}
         </Flex>
@@ -457,7 +510,7 @@ export default function ProjectSettingsPage() {
         <Text size="3" style={{ color: 'var(--gray-9)' }}>
           Uploadez une nouvelle archive pour mettre à jour le site sans créer un nouveau projet.
         </Text>
-        <RedeployZone projectId={id} />
+        <RedeployZone projectId={id} onRedeployed={loadLastDeployment} />
       </Flex>
 
       <Separator size="4" my="6" />

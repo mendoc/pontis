@@ -149,7 +149,16 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
         {/* Date de création */}
         <td style={{ padding: '12px 16px' }}>
           <Text size="2" style={{ color: 'var(--gray-10)' }}>
-            {project.createdAt ? new Date(project.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+            {(() => {
+              const raw = project.lastDeployedAt ?? project.createdAt
+              if (!raw) return '—'
+              const d = new Date(raw)
+              const today = new Date()
+              const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
+              return isToday
+                ? `Auj. ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                : d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            })()}
           </Text>
         </td>
 
@@ -417,7 +426,7 @@ export default function DashboardPage() {
       case 'status':    av = STATUS_LABELS[a.status] ?? '';   bv = STATUS_LABELS[b.status] ?? '';   break
       case 'createdBy': av = createdBy;                       bv = createdBy;                       break
       case 'type':      av = a.type ?? '';                    bv = b.type ?? '';                    break
-      case 'createdAt': av = a.createdAt ?? '';               bv = b.createdAt ?? '';               break
+      case 'createdAt': av = a.lastDeployedAt ?? a.createdAt ?? ''; bv = b.lastDeployedAt ?? b.createdAt ?? ''; break
     }
     const cmp = normalize(av).localeCompare(normalize(bv))
     return sortOrder === 'asc' ? cmp : -cmp
@@ -464,7 +473,7 @@ export default function DashboardPage() {
                   <SortableHeader label="Statut"       field="status"    sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortableHeader label="Créé par"     field="createdBy" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortableHeader label="Type"         field="type"      sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
-                  <SortableHeader label="Créé le"      field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <SortableHeader label="Déployé le"   field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <th style={{ padding: '10px 16px', width: 48 }} />
                 </tr>
               </thead>

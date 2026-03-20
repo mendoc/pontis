@@ -12,6 +12,7 @@ export interface Project {
   domain: string | null
   createdAt?: string
   restartedAt?: string | null
+  lastDeployedAt?: string | null
 }
 
 export interface ProjectsPage {
@@ -21,18 +22,40 @@ export interface ProjectsPage {
   limit: number
 }
 
+export interface Deployment {
+  id: string
+  projectId: string
+  status: 'pending' | 'building' | 'success' | 'failed'
+  logs: string | null
+  imageTag: string | null
+  createdAt: string
+  finishedAt?: string | null
+}
+
+export interface DeploymentPage {
+  data: Deployment[]
+  total: number
+  page: number
+  limit: number
+}
+
+type ProjectWithDeployment = Project & { deploymentId?: string }
+
 interface ProjectsContextValue {
   projects: Project[]
   fetchProjects: (opts?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc' }) => Promise<ProjectsPage>
   getProject: (id: string) => Promise<Project>
-  createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
-  redeployProject: (id: string, file: File, onProgress?: (pct: number) => void) => Promise<Project>
+  createProject: (name: string, file: File, onProgress?: (pct: number) => void) => Promise<ProjectWithDeployment>
+  redeployProject: (id: string, file: File, onProgress?: (pct: number) => void) => Promise<ProjectWithDeployment>
   renameProject: (id: string, name: string) => Promise<Project>
   startProject: (id: string) => Promise<Project>
   stopProject: (id: string) => Promise<Project>
   restartProject: (id: string) => Promise<Project>
   checkSlug: (slug: string) => Promise<{ available: boolean }>
   deleteProject: (id: string) => Promise<void>
+  fetchDeployments: (projectId: string, opts?: { page?: number; limit?: number }) => Promise<DeploymentPage>
+  getDeployment: (projectId: string, deploymentId: string) => Promise<Deployment>
+  rollbackDeployment: (projectId: string, deploymentId: string) => Promise<Project>
 }
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null)
@@ -74,7 +97,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return res.json()
   }
 
-  const redeployProject = async (id: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
+  const redeployProject = async (id: string, file: File, onProgress?: (pct: number) => void): Promise<ProjectWithDeployment> => {
     const CHUNK_SIZE = 5 * 1024 * 1024
 
     const initRes = await authFetch('/api/v1/projects/upload/init', { method: 'POST' })
@@ -121,7 +144,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return updated
   }
 
-  const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<Project> => {
+  const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<ProjectWithDeployment> => {
     const CHUNK_SIZE = 5 * 1024 * 1024
 
     // 1. Init
@@ -204,8 +227,32 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) => prev.filter((p) => p.id !== id))
   }
 
+  const fetchDeployments = async (projectId: string, opts: { page?: number; limit?: number } = {}): Promise<DeploymentPage> => {
+    const params = new URLSearchParams()
+    params.set('page', String(opts.page ?? 1))
+    params.set('limit', String(opts.limit ?? 50))
+    const res = await authFetch(`/api/v1/projects/${projectId}/deployments?${params}`)
+    if (!res.ok) throw new Error('Erreur lors du chargement des déploiements')
+    return res.json()
+  }
+
+  const getDeployment = async (projectId: string, deploymentId: string): Promise<Deployment> => {
+    const res = await authFetch(`/api/v1/projects/${projectId}/deployments/${deploymentId}`)
+    if (!res.ok) throw new Error('Déploiement introuvable')
+    return res.json()
+  }
+
+  const rollbackDeployment = async (projectId: string, deploymentId: string): Promise<Project> => {
+    const res = await authFetch(`/api/v1/projects/${projectId}/deployments/${deploymentId}/rollback`, { method: 'POST' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? 'Erreur lors du rollback')
+    }
+    return res.json()
+  }
+
   return (
-    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug, deleteProject }}>
+    <ProjectsContext.Provider value={{ projects, fetchProjects, getProject, createProject, redeployProject, renameProject, startProject, stopProject, restartProject, checkSlug, deleteProject, fetchDeployments, getDeployment, rollbackDeployment }}>
       {children}
     </ProjectsContext.Provider>
   )

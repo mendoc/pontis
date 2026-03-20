@@ -121,14 +121,14 @@ export default function NewProjectPage() {
     setUploadProgress(0)
     setPhase('uploading')
     try {
-      const project = await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
+      const result = await createProject(name.trim(), file, (pct) => setUploadProgress(pct))
 
       // Phase build : polling jusqu'à running ou failed
       setPhase('building')
-      let status = project.status
+      let status = result.status
       while (status === 'building') {
         await new Promise((r) => setTimeout(r, 2000))
-        const updated = await getProject(project.id)
+        const updated = await getProject(result.id)
         status = updated.status
       }
 
@@ -144,7 +144,7 @@ export default function NewProjectPage() {
         await new Promise((r) => setTimeout(r, 1000))
       }
 
-      router.push(`/projects/${project.id}/settings`)
+      router.push(`/projects/${result.id}/settings`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
@@ -171,6 +171,7 @@ export default function NewProjectPage() {
             value={name}
             onChange={(e) => { setName(e.target.value); setError(null) }}
             disabled={submitting}
+            autoFocus
           />
           {slug && (
             slug.length < 3 ? (

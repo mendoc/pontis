@@ -43,7 +43,7 @@ const accountNavItems: NavItem[] = [
 
 const getProjectNavItems = (projectId: string): NavItem[] => [
   { label: 'Configuration', icon: <GearIcon />, href: `/projects/${projectId}/settings` },
-  { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments`, comingSoon: true },
+  { label: 'Déploiements', icon: <RocketIcon />, href: `/projects/${projectId}/deployments` },
   { label: 'Logs', icon: <ReaderIcon />, href: `/projects/${projectId}/logs`, comingSoon: true },
   { label: 'Terminal', icon: <DesktopIcon />, href: `/projects/${projectId}/terminal`, comingSoon: true },
   { label: "Variables d'env", icon: <MixerHorizontalIcon />, href: `/projects/${projectId}/env`, comingSoon: true },
