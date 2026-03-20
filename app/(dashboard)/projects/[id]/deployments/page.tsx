@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Box, Heading, Text, Badge, Button, Flex, AlertDialog } from '@radix-ui/themes'
-import { ChevronRightIcon } from '@radix-ui/react-icons'
+import { Box, Heading, Text, Badge, Button, Flex, AlertDialog, Dialog } from '@radix-ui/themes'
+import { ChevronRightIcon, PlusIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
+import { RedeployZone } from '@/app/components/RedeployZone'
 
 type StatusFilter = 'all' | 'success' | 'failed' | 'building' | 'pending'
 
@@ -43,6 +44,8 @@ export default function DeploymentsPage() {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [rollbackTarget, setRollbackTarget] = useState<Deployment | null>(null)
   const [rolling, setRolling] = useState(false)
+  const [redeployOpen, setRedeployOpen] = useState(false)
+  const [redeployKey, setRedeployKey] = useState(0)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = async () => {
@@ -92,9 +95,13 @@ export default function DeploymentsPage() {
 
   return (
     <Box>
-      <Heading size="6" mb="2" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
-        Déploiements
-      </Heading>
+      <Flex align="center" justify="between" mb="2">
+        <Heading size="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>Déploiements</Heading>
+        <Button variant="solid" color="gray" highContrast size="2" style={{ cursor: 'pointer', gap: 6 }}
+          onClick={() => { setRedeployKey((k) => k + 1); setRedeployOpen(true) }}>
+          <PlusIcon /> Nouveau déploiement
+        </Button>
+      </Flex>
       <Text size="2" mb="6" style={{ color: 'var(--gray-9)', display: 'block' }}>
         Historique des déploiements du projet.
       </Text>
@@ -195,6 +202,26 @@ export default function DeploymentsPage() {
           })}
         </Box>
       )}
+
+      <Dialog.Root open={redeployOpen} onOpenChange={setRedeployOpen}>
+        <Dialog.Content maxWidth="480px">
+          <Dialog.Title mb="1">Nouveau déploiement</Dialog.Title>
+          <Dialog.Description size="2" mb="4" style={{ color: 'var(--gray-9)' }}>
+            Uploadez une nouvelle archive pour déployer une nouvelle version du projet.
+          </Dialog.Description>
+          <RedeployZone
+            key={redeployKey}
+            projectId={id}
+            onRedeployed={(updated, succeeded) => {
+              if (succeeded) {
+                setRedeployOpen(false)
+                toast('Nouveau déploiement réussi.')
+                load()
+              }
+            }}
+          />
+        </Dialog.Content>
+      </Dialog.Root>
 
       <AlertDialog.Root open={!!rollbackTarget} onOpenChange={(open) => { if (!open) setRollbackTarget(null) }}>
         <AlertDialog.Content maxWidth="420px">

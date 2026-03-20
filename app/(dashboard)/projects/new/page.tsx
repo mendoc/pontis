@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Box, Flex, Heading, Text, TextField, Button, Progress } from '@radix-ui/themes'
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { useProjects } from '@/app/context/projects'
+import { MAX_ZIP_SIZE_BYTES, MAX_ZIP_SIZE_MB } from '@/app/config'
 
 function slugify(name: string): string {
   return name
@@ -67,8 +68,8 @@ export default function NewProjectPage() {
       setFile(null)
       return
     }
-    if (selected.size > 50 * 1024 * 1024) {
-      setError('Le fichier ne doit pas dépasser 50 Mo')
+    if (selected.size > MAX_ZIP_SIZE_BYTES) {
+      setError(`Le fichier ne doit pas dépasser ${MAX_ZIP_SIZE_MB} Mo.`)
       setFile(null)
       return
     }
@@ -85,8 +86,8 @@ export default function NewProjectPage() {
       setFile(null)
       return
     }
-    if (dropped.size > 50 * 1024 * 1024) {
-      setError('Le fichier ne doit pas dépasser 50 Mo')
+    if (dropped.size > MAX_ZIP_SIZE_BYTES) {
+      setError(`Le fichier ne doit pas dépasser ${MAX_ZIP_SIZE_MB} Mo.`)
       setFile(null)
       return
     }
@@ -206,7 +207,7 @@ export default function NewProjectPage() {
               <Text as="label" size="2" weight="medium" style={{ color: 'var(--gray-11)' }}>
                 Archive ZIP (dist, build, out…)
               </Text>
-              <Text size="1" style={{ color: 'var(--gray-8)' }}>max 50 Mo</Text>
+              <Text size="1" style={{ color: 'var(--gray-8)' }}>max {MAX_ZIP_SIZE_MB} Mo</Text>
             </Flex>
 
             <Flex
