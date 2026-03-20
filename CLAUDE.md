@@ -13,6 +13,8 @@ npm run type-check # Vérification TypeScript (tsc --noEmit)
 
 Aucun framework de test ni linter n'est configuré pour ce package.
 
+Toujours encadrer les chemins de fichiers de quotes dans les commandes git (ex: `git add 'app/(dashboard)/page.tsx'`) — les parenthèses dans les noms de répertoires sont interprétées par zsh comme des globs sans quotes.
+
 ## Architecture
 
 **Pontis Web** est le frontend d'une plateforme PaaS auto-hébergée (alternative à Netlify/Vercel). Ce dépôt est autonome et se déploie indépendamment des autres services Pontis (`api`, `webhook`, `docs`).
