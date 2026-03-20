@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Box, Flex, Heading, Text, Badge, Button, AlertDialog } from '@radix-ui/themes'
+import { ArrowLeftIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
@@ -92,16 +93,17 @@ export default function DeploymentDetailPage() {
 
   return (
     <Box style={{ maxWidth: 900 }}>
+      <Button
+        variant="ghost"
+        color="gray"
+        size="1"
+        mb="4"
+        style={{ cursor: 'pointer', marginLeft: -6 }}
+        onClick={() => router.back()}
+      >
+        <ArrowLeftIcon /> Retour
+      </Button>
       <Flex align="center" gap="3" mb="6" wrap="wrap">
-        <Button
-          variant="ghost"
-          color="gray"
-          size="1"
-          style={{ cursor: 'pointer' }}
-          onClick={() => router.back()}
-        >
-          ← Retour
-        </Button>
         <Heading size="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
           Déploiement — {formatDate(deployment.createdAt)}
         </Heading>
