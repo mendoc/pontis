@@ -60,6 +60,11 @@ Trois rôles dans cet ordre :
 
 - **`ThemeProvider.tsx`** — Gestion du thème (voir Structure & conventions)
 - **`Toast.tsx`** — Notifications flottantes (coin bas-droit, auto-dismiss 4 s). Expose `ToastProvider` et `useToast()`. Utilise `@radix-ui/react-toast`. Usage : `const { toast } = useToast()` puis `toast('message')` ou `toast('message', 'error')`.
+- **`RedeployZone.tsx`** — Zone drag & drop pour redéployer un projet via ZIP. Props : `projectId`, `onRedeployed?: (project, succeeded: boolean) => void`. Gère upload par chunks, polling du déploiement (pas du projet), affichage du bouton "Voir les logs →" pendant le build. Utilisé dans `settings/page.tsx` et via `Dialog` dans `deployments/page.tsx`.
+
+## Configuration (app/config.ts)
+
+- **`MAX_ZIP_SIZE_MB`** / **`MAX_ZIP_SIZE_BYTES`** — Taille maximale des archives ZIP uploadées (50 Mo par défaut). Utilisé dans `RedeployZone` et `new/page.tsx` pour la validation et les labels UI.
 
 ## Appels API
 
@@ -89,7 +94,13 @@ Plusieurs rubriques de la navigation projet sont des stubs (`comingSoon: true` d
 - Logs, Terminal, Variables d'env, Notifications (`/projects/[id]/{logs,terminal,env,notifications}`)
 - Mon profil, Feedback (`/profile`, `/feedback`)
 
-**Pages pleinement implémentées :** Déploiements (`/projects/[id]/deployments`) avec liste filtrée, rollback et page de détail (`/projects/[id]/deployments/[deploymentId]`) avec logs, rollback et suppression. Le polling s'arrête automatiquement quand tous les déploiements sont dans un état terminal.
+**Pages pleinement implémentées :**
+- **Déploiements** (`/projects/[id]/deployments`) : liste filtrée, rollback, bouton "Nouveau déploiement" (Dialog + `RedeployZone`).
+- **Détail déploiement** (`/projects/[id]/deployments/[deploymentId]`) : logs avec toolbar (copier, scroll haut/bas), rollback, suppression. Polling s'arrête automatiquement à l'état terminal. Paramètre `?newProject=1` : déclenche un bandeau SSL avec countdown 30 s puis redirige vers les settings.
+
+## Titres d'onglets
+
+Chaque page définit `document.title` via `useEffect` dès que les données sont disponibles. Format : `Section | Nom du projet | Pontis` (ex : `Déploiements | mon-site | Pontis`). Les pages sans projet utilisent `Section | Pontis`.
 
 ## Déploiement
 
