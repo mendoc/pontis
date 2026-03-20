@@ -406,7 +406,7 @@ export default function AdminProjectsPage() {
   }
 
   const handleUpdate = (updated: Project) =>
-    setProjects((prev) => prev.map((p) => p.id === updated.id ? { ...p, ...updated } : p))
+    setProjects((prev) => prev.map((p) => p.id === updated.id ? { ...p, ...updated } as AdminProject : p))
 
   const handleDelete = (id: string) => {
     setProjects((prev) => prev.filter((p) => p.id !== id))
