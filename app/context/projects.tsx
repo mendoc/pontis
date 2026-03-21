@@ -32,6 +32,7 @@ export interface Deployment {
   imageTag: string | null
   createdAt: string
   finishedAt?: string | null
+  deployedBy?: { id: string; email: string; name: string | null } | null
 }
 
 export interface DeploymentPage {

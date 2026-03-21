@@ -190,6 +190,15 @@ export default function DeploymentsPage() {
                   )}
                 </Box>
 
+                {/* Déployeur */}
+                <Box style={{ minWidth: 160, textAlign: 'right', marginRight: 32 }}>
+                  {dep.deployedBy && (
+                    <Text size="1" style={{ color: 'var(--gray-9)' }}>
+                      Par <span style={{ fontFamily: 'monospace' }}>{dep.deployedBy.name ?? dep.deployedBy.email}</span>
+                    </Text>
+                  )}
+                </Box>
+
                 {/* Action + chevron */}
                 <Flex align="center" gap="3">
                   {dep.status === 'success' && !isProduction && (

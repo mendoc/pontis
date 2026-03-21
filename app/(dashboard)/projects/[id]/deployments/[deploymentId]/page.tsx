@@ -149,13 +149,21 @@ export default function DeploymentDetailPage() {
       >
         <ArrowLeftIcon /> Retour
       </Button>
-      <Flex align="center" gap="3" mb="6" wrap="wrap">
+      <Flex align="center" gap="3" mb="2" wrap="wrap">
         <Heading size="6" style={{ color: 'var(--gray-12)', fontWeight: 700 }}>
           Déploiement — {formatDate(deployment.createdAt)}
         </Heading>
         <StatusBadge status={deployment.status} />
         {isCurrentDeployment && <Badge color="blue" variant="soft">En production</Badge>}
       </Flex>
+      {deployment.deployedBy && (
+        <Text size="2" mb="5" style={{ color: 'var(--gray-9)', display: 'block' }}>
+          Déployé par{' '}
+          <span style={{ color: 'var(--gray-11)', fontFamily: 'monospace' }}>
+            {deployment.deployedBy.name ?? deployment.deployedBy.email}
+          </span>
+        </Text>
+      )}
       </Box>
 
       {/* Bandeau SSL */}
