@@ -87,20 +87,24 @@ function ProjectRow({ project, createdBy, onUpdate, onDelete }: {
         </td>
 
         {/* Sous-domaine */}
-        <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
+        <td style={{ padding: '12px 16px' }}>
           {project.domain ? (
             <Flex align="center" gap="2">
               <a
                 href={`https://${project.domain}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 style={{ fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
+                onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline dashed')}
+                onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
               >
                 https://{project.domain}
               </a>
               <button
                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gray-8)', display: 'flex', alignItems: 'center' }}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   navigator.clipboard.writeText(`https://${project.domain}`)
                   setDomainCopied(true)
                   setTimeout(() => setDomainCopied(false), 2000)

@@ -63,7 +63,7 @@ function DomainCell({ domain }: { domain: string | null }) {
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
         style={{ fontSize: 13, color: 'var(--accent-9)', textDecoration: 'none' }}
-        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline dashed')}
         onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
       >
         https://{domain}
@@ -148,7 +148,7 @@ function ProjectRow({ project, selected, onSelect, onUpdate, onDelete }: {
         <td style={{ padding: '12px 16px' }}>
           <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>{project.name}</Text>
         </td>
-        <td style={{ padding: '12px 16px' }} onClick={(e) => e.stopPropagation()}>
+        <td style={{ padding: '12px 16px' }}>
           <DomainCell domain={project.domain} />
         </td>
         <td style={{ padding: '12px 16px' }}>
