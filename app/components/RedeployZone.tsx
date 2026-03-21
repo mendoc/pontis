@@ -129,7 +129,7 @@ export function RedeployZone({ projectId, onRedeployed }: RedeployZoneProps) {
 
       {phase === 'uploading' && (
         <Flex direction="column" gap="1">
-          <Text size="2" style={{ color: 'var(--gray-10)' }}>Téléversement… {uploadProgress}%</Text>
+          <Text size="2" style={{ color: 'var(--gray-10)' }}>{uploadProgress === 0 ? 'Initialisation…' : `Téléversement… ${uploadProgress}%`}</Text>
           <Box style={{ height: 6, background: 'var(--gray-4)', borderRadius: 3, overflow: 'hidden' }}>
             <Box style={{ height: '100%', width: `${uploadProgress}%`, background: 'var(--gray-9)', transition: 'width 0.2s' }} />
           </Box>

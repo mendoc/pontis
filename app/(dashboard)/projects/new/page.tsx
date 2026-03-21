@@ -261,7 +261,7 @@ export default function NewProjectPage() {
           <Box mb="4">
             <Flex justify="between" mb="1">
               <Text size="1" color="gray">
-                {phase === 'uploading' && `Téléversement… ${uploadProgress}%`}
+                {phase === 'uploading' && (uploadProgress === 0 ? 'Initialisation…' : `Téléversement… ${uploadProgress}%`)}
                 {phase === 'building' && 'Build en cours…'}
                 {phase === 'ssl' && 'Génération du certificat SSL…'}
               </Text>
@@ -297,7 +297,7 @@ export default function NewProjectPage() {
               disabled={submitting || !file}
               style={{ cursor: submitting ? 'not-allowed' : 'pointer', height: 36, padding: '0 16px', verticalAlign: 'middle' }}
             >
-              {phase === 'uploading' && 'Téléversement…'}
+              {phase === 'uploading' && (uploadProgress === 0 ? 'Initialisation…' : 'Téléversement…')}
               {phase === 'building' && 'Build en cours…'}
               {phase === 'ssl' && 'Déploiement…'}
               {phase === 'idle' && 'Créer le projet'}
