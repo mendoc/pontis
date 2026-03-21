@@ -102,7 +102,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const redeployProject = async (id: string, file: File, onProgress?: (pct: number) => void): Promise<ProjectWithDeployment> => {
-    const CHUNK_SIZE = 5 * 1024 * 1024
+    const CHUNK_SIZE = 500 * 1024
 
     const initRes = await authFetch('/api/v1/projects/upload/init', { method: 'POST' })
     if (!initRes.ok) throw new Error('Erreur lors de l\'initialisation du transfert')
@@ -149,7 +149,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   }
 
   const createProject = async (name: string, file: File, onProgress?: (pct: number) => void): Promise<ProjectWithDeployment> => {
-    const CHUNK_SIZE = 5 * 1024 * 1024
+    const CHUNK_SIZE = 500 * 1024
 
     // 1. Init
     const initRes = await authFetch('/api/v1/projects/upload/init', { method: 'POST' })

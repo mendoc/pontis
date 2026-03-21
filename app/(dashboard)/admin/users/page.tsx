@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Box, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { ChevronDownIcon, ChevronUpIcon, Cross2Icon } from '@radix-ui/react-icons'
-import { LockClosedIcon } from '@radix-ui/react-icons'
+import { Cross2Icon, LockClosedIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
+import { SortableHeader, SortOrder } from '@/app/components/SortableHeader'
+import { formatDate } from '@/app/lib/formatDate'
 
 interface AdminUser {
   id: string
@@ -23,35 +24,6 @@ interface UsersPage {
   limit: number
 }
 
-type SortOrder = 'asc' | 'desc'
-
-function SortableHeader({ label, field, sortBy, sortOrder, onSort }: {
-  label: string
-  field: string
-  sortBy: string
-  sortOrder: SortOrder
-  onSort: (field: string) => void
-}) {
-  const active = sortBy === field
-  return (
-    <th
-      onClick={() => onSort(field)}
-      style={{ padding: '10px 16px', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
-    >
-      <Flex align="center" gap="1">
-        <Text size="1" weight="medium" style={{ color: active ? 'var(--gray-12)' : 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {label}
-        </Text>
-        {active
-          ? sortOrder === 'asc'
-            ? <ChevronUpIcon style={{ color: 'var(--gray-11)' }} />
-            : <ChevronDownIcon style={{ color: 'var(--gray-11)' }} />
-          : <ChevronDownIcon style={{ color: 'var(--gray-6)' }} />
-        }
-      </Flex>
-    </th>
-  )
-}
 
 function RoleBadge({ role }: { role: 'developer' | 'admin' }) {
   if (role === 'admin') return <Badge color="amber" variant="soft">Admin</Badge>
@@ -79,6 +51,10 @@ export default function AdminUsersPage() {
 
   const tokenRef = useRef(accessToken)
   tokenRef.current = accessToken
+  const sortByRef = useRef(sortBy)
+  sortByRef.current = sortBy
+  const sortOrderRef = useRef(sortOrder)
+  sortOrderRef.current = sortOrder
 
   useEffect(() => {
     document.title = role === 'admin' ? 'Utilisateurs | Pontis' : 'Accès refusé | Pontis'
@@ -139,7 +115,7 @@ export default function AdminUsersPage() {
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
     searchDebounce.current = setTimeout(async () => {
       setSearching(true)
-      try { await apiFetch(1, search, sortBy, sortOrder) } catch { /* silencieux */ }
+      try { await apiFetch(1, search, sortByRef.current, sortOrderRef.current) } catch { /* silencieux */ }
       finally { setSearching(false) }
     }, 300)
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current) }
@@ -178,18 +154,6 @@ export default function AdminUsersPage() {
   }
 
   const totalPages = Math.ceil(total / LIMIT)
-
-  const formatDate = (raw: string) => {
-    const d = new Date(raw)
-    const today = new Date()
-    const isToday =
-      d.getFullYear() === today.getFullYear() &&
-      d.getMonth() === today.getMonth() &&
-      d.getDate() === today.getDate()
-    return isToday
-      ? `Auj. ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-      : d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  }
 
   if (!authLoading && role !== 'admin') {
     return (

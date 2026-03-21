@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { ChevronDownIcon, ChevronUpIcon, DotsHorizontalIcon, CopyIcon, CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
+import { DotsHorizontalIcon, CopyIcon, CheckIcon, Cross2Icon } from '@radix-ui/react-icons'
 import { useProjects, Project } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 import { useToast } from '@/app/components/Toast'
+import { SortableHeader, SortOrder } from '@/app/components/SortableHeader'
 
 const STATUS_LABELS: Record<string, string> = {
   running: 'En ligne',
@@ -17,35 +18,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
-type SortOrder = 'asc' | 'desc'
-
-function SortableHeader({ label, field, sortBy, sortOrder, onSort }: {
-  label: string
-  field: string
-  sortBy: string
-  sortOrder: SortOrder
-  onSort: (field: string) => void
-}) {
-  const active = sortBy === field
-  return (
-    <th
-      onClick={() => onSort(field)}
-      style={{ padding: '10px 16px', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
-    >
-      <Flex align="center" gap="1">
-        <Text size="1" weight="medium" style={{ color: active ? 'var(--gray-12)' : 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {label}
-        </Text>
-        {active
-          ? sortOrder === 'asc'
-            ? <ChevronUpIcon style={{ color: 'var(--gray-11)' }} />
-            : <ChevronDownIcon style={{ color: 'var(--gray-11)' }} />
-          : <ChevronDownIcon style={{ color: 'var(--gray-6)' }} />
-        }
-      </Flex>
-    </th>
-  )
-}
 
 function StatusBadge({ status }: { status: string }) {
   const label = STATUS_LABELS[status] ?? status

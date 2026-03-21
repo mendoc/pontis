@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { ChevronDownIcon, ChevronUpIcon, CopyIcon, CheckIcon, Cross2Icon, DotsHorizontalIcon, LockClosedIcon, StopIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
+import { CopyIcon, CheckIcon, Cross2Icon, DotsHorizontalIcon, LockClosedIcon, StopIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Project } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
+import { SortableHeader, SortOrder } from '@/app/components/SortableHeader'
+import { formatDate } from '@/app/lib/formatDate'
 
 interface AdminProject {
   id: string
@@ -26,8 +28,6 @@ interface ProjectsPage {
   page: number
   limit: number
 }
-
-type SortOrder = 'asc' | 'desc'
 
 const STATUS_LABELS: Record<string, string> = {
   running:  'En ligne',
@@ -86,34 +86,6 @@ function DomainCell({ domain }: { domain: string | null }) {
         {copied ? <CheckIcon width={11} height={11} /> : <CopyIcon width={11} height={11} />}
       </button>
     </Flex>
-  )
-}
-
-function SortableHeader({ label, field, sortBy, sortOrder, onSort }: {
-  label: string
-  field: string
-  sortBy: string
-  sortOrder: SortOrder
-  onSort: (field: string) => void
-}) {
-  const active = sortBy === field
-  return (
-    <th
-      onClick={() => onSort(field)}
-      style={{ padding: '10px 16px', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
-    >
-      <Flex align="center" gap="1">
-        <Text size="1" weight="medium" style={{ color: active ? 'var(--gray-12)' : 'var(--gray-9)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {label}
-        </Text>
-        {active
-          ? sortOrder === 'asc'
-            ? <ChevronUpIcon style={{ color: 'var(--gray-11)' }} />
-            : <ChevronDownIcon style={{ color: 'var(--gray-11)' }} />
-          : <ChevronDownIcon style={{ color: 'var(--gray-6)' }} />
-        }
-      </Flex>
-    </th>
   )
 }
 
@@ -292,19 +264,6 @@ function ProjectRow({ project, selected, onSelect, onUpdate, onDelete }: {
   )
 }
 
-function formatDate(raw: string | null) {
-  if (!raw) return '—'
-  const d = new Date(raw)
-  const today = new Date()
-  const isToday =
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate()
-  return isToday
-    ? `Auj. ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-    : d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
 const LIMIT = 10
 
 export default function AdminProjectsPage() {
@@ -328,6 +287,10 @@ export default function AdminProjectsPage() {
 
   const tokenRef = useRef(accessToken)
   tokenRef.current = accessToken
+  const sortByRef = useRef(sortBy)
+  sortByRef.current = sortBy
+  const sortOrderRef = useRef(sortOrder)
+  sortOrderRef.current = sortOrder
 
   useEffect(() => {
     document.title = role === 'admin' ? 'Projets | Administration | Pontis' : 'Accès refusé | Pontis'
@@ -374,7 +337,7 @@ export default function AdminProjectsPage() {
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
     searchDebounce.current = setTimeout(async () => {
       setSearching(true)
-      try { await apiFetch(1, search, sortBy, sortOrder) } catch { /* silencieux */ }
+      try { await apiFetch(1, search, sortByRef.current, sortOrderRef.current) } catch { /* silencieux */ }
       finally { setSearching(false) }
     }, 300)
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current) }
@@ -430,7 +393,7 @@ export default function AdminProjectsPage() {
   const handleBulkStop = async () => {
     setBulkLoading('stop')
     const results = await Promise.allSettled(selectedIds.map((id) => stopProject(id)))
-    results.forEach((r, i) => { if (r.status === 'fulfilled') handleUpdate(r.value) })
+    results.forEach((r) => { if (r.status === 'fulfilled') handleUpdate(r.value) })
     const failed = results.filter((r) => r.status === 'rejected').length
     if (failed > 0) toast(`${failed} projet(s) n'ont pas pu être arrêtés.`, 'error')
     else toast(`${selectedIds.length} projet(s) arrêtés.`)
