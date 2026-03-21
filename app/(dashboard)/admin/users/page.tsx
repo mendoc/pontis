@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Badge, Box, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
 import { Cross2Icon, LockClosedIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
@@ -48,6 +49,9 @@ export default function AdminUsersPage() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const router = useRouter()
 
   const tokenRef = useRef(accessToken)
   tokenRef.current = accessToken
@@ -223,8 +227,8 @@ export default function AdminUsersPage() {
                   <tr
                     key={user.id}
                     style={{ borderBottom: '1px solid var(--gray-4)' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--gray-2)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--gray-2)'; setHoveredId(user.id) }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ''; setHoveredId(null) }}
                   >
                     <td style={{ padding: '12px 16px' }}>
                       <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
@@ -241,7 +245,16 @@ export default function AdminUsersPage() {
                       <AuthMethodBadge method={user.authMethod} />
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      <Text size="2" style={{ color: 'var(--gray-10)' }}>{user._count.projects}</Text>
+                      <Flex align="center" gap="4">
+                        <Text size="2" style={{ color: 'var(--gray-10)' }}>{user._count.projects}</Text>
+                        <Button
+                          size="1" variant="ghost" color="gray"
+                          style={{ cursor: 'pointer', opacity: hoveredId === user.id ? 1 : 0, transition: 'opacity 0.15s' }}
+                          onClick={() => router.push(`/admin/projects?user=${encodeURIComponent(user.email)}`)}
+                        >
+                          Voir
+                        </Button>
+                      </Flex>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <Text size="2" style={{ color: 'var(--gray-10)' }}>{formatDate(user.createdAt)}</Text>

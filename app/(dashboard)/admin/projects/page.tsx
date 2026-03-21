@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { CopyIcon, CheckIcon, Cross2Icon, DotsHorizontalIcon, LockClosedIcon, StopIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
+import { CopyIcon, CheckIcon, Cross2Icon, DotsHorizontalIcon, LockClosedIcon, PersonIcon, StopIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Project } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
@@ -270,11 +270,15 @@ export default function AdminProjectsPage() {
   const { accessToken, role, isLoading: authLoading, refreshSession } = useAuth()
   const { stopProject, restartProject, deleteProject } = useProjects()
   const { toast } = useToast()
+  const searchParams = useSearchParams()
+
+  const initialUserFilter = searchParams.get('user') || null
 
   const [projects, setProjects] = useState<AdminProject[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialUserFilter ?? '')
+  const [userFilter, setUserFilter] = useState<string | null>(initialUserFilter)
   const [sortBy, setSortBy] = useState('createdAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [loading, setLoading] = useState(true)
@@ -317,7 +321,7 @@ export default function AdminProjectsPage() {
   useEffect(() => {
     if (authLoading || role !== 'admin') return
     let active = true
-    fetchProjects(1, '', 'createdAt', 'desc')
+    fetchProjects(1, initialUserFilter ?? '', 'createdAt', 'desc')
       .then((result) => { if (!active) return; setProjects(result.data); setTotal(result.total) })
       .catch(() => {})
       .finally(() => { if (active) setLoading(false) })
@@ -351,6 +355,16 @@ export default function AdminProjectsPage() {
 
   const clearSearch = async () => {
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    setSearch('')
+    setUserFilter(null)
+    setSearching(true)
+    try { await apiFetch(1, '', sortBy, sortOrder) } catch { /* silencieux */ }
+    finally { setSearching(false) }
+  }
+
+  const clearUserFilter = async () => {
+    if (searchDebounce.current) clearTimeout(searchDebounce.current)
+    setUserFilter(null)
     setSearch('')
     setSearching(true)
     try { await apiFetch(1, '', sortBy, sortOrder) } catch { /* silencieux */ }
@@ -454,7 +468,7 @@ export default function AdminProjectsPage() {
               size="2"
               placeholder="Rechercher par nom, domaine ou propriétaire"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setUserFilter(null) }}
               style={{ maxWidth: 400, flex: 1 }}
             >
               {search && (
@@ -472,6 +486,25 @@ export default function AdminProjectsPage() {
               {search ? `${total} résultat${total > 1 ? 's' : ''}` : `${total} au total`}
             </Text>
           </Flex>
+
+          {userFilter && (
+            <Flex align="center" gap="2" mb="4" mt="2">
+              <Text size="1" style={{ color: 'var(--gray-9)' }}>Filtré par :</Text>
+              <Flex
+                align="center" gap="1"
+                style={{ backgroundColor: 'var(--gray-3)', border: '1px solid var(--gray-5)', borderRadius: 4, padding: '2px 6px 2px 8px' }}
+              >
+                <PersonIcon width={11} height={11} style={{ color: 'var(--gray-9)', flexShrink: 0 }} />
+                <Text size="1" style={{ color: 'var(--gray-11)', fontFamily: 'monospace' }}>{userFilter}</Text>
+                <button
+                  onClick={clearUserFilter}
+                  style={{ background: 'none', border: 'none', padding: '0 0 0 4px', cursor: 'pointer', color: 'var(--gray-8)', display: 'flex', alignItems: 'center' }}
+                >
+                  <Cross2Icon width={10} height={10} />
+                </button>
+              </Flex>
+            </Flex>
+          )}
 
           {/* Barre d'actions de masse */}
           {someSelected && (
