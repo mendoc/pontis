@@ -71,7 +71,8 @@ export default function DeploymentDetailPage() {
     if (!deployment) return
     if (deployment.status === 'building' || deployment.status === 'pending') {
       pollingRef.current = setInterval(async () => {
-        const d = await load()
+        const [d, project] = await Promise.all([load(), getProject(id).catch(() => null)])
+        if (project) setIsCurrentDeployment(project.currentDeploymentId === deploymentId)
         if (d && d.status !== 'building' && d.status !== 'pending') {
           clearInterval(pollingRef.current!)
         }
