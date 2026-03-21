@@ -97,6 +97,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const getProject = async (id: string): Promise<Project> => {
     const res = await authFetch(`/api/v1/projects/${id}`)
+    if (res.status === 403) throw new Error('FORBIDDEN')
     if (!res.ok) throw new Error('Projet introuvable')
     return res.json()
   }

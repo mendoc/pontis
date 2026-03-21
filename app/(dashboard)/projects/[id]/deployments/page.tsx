@@ -8,6 +8,7 @@ import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
 import { RedeployZone } from '@/app/components/RedeployZone'
+import { ForbiddenView } from '@/app/components/ForbiddenView'
 
 type StatusFilter = 'all' | 'success' | 'failed' | 'building' | 'pending'
 
@@ -41,6 +42,7 @@ export default function DeploymentsPage() {
   const [deployments, setDeployments] = useState<Deployment[]>([])
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [rollbackTarget, setRollbackTarget] = useState<Deployment | null>(null)
   const [rolling, setRolling] = useState(false)
@@ -63,7 +65,9 @@ export default function DeploymentsPage() {
     if (authLoading) return
     Promise.all([
       load(),
-      getProject(id).then((p) => { document.title = `Déploiements | ${p.name} | Pontis` }).catch(() => {}),
+      getProject(id).then((p) => { document.title = `Déploiements | ${p.name} | Pontis` }).catch((err) => {
+        if (err instanceof Error && err.message === 'FORBIDDEN') setForbidden(true)
+      }),
     ]).finally(() => setLoading(false))
   }, [id, authLoading])
 
@@ -95,6 +99,7 @@ export default function DeploymentsPage() {
   const filtered = filter === 'all' ? deployments : deployments.filter((d) => d.status === filter)
 
   if (loading) return <Text size="3" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
+  if (forbidden) return <ForbiddenView />
 
   return (
     <Box>

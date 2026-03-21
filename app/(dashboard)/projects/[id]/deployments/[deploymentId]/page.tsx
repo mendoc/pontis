@@ -7,6 +7,7 @@ import { ArrowLeftIcon, ArrowUpIcon, ArrowDownIcon, CopyIcon, CheckIcon } from '
 import { useAuth } from '@/app/context/auth'
 import { useProjects, Deployment } from '@/app/context/projects'
 import { useToast } from '@/app/components/Toast'
+import { ForbiddenView } from '@/app/components/ForbiddenView'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('fr-FR', {
@@ -32,6 +33,7 @@ export default function DeploymentDetailPage() {
   const [deployment, setDeployment] = useState<Deployment | null>(null)
   const [isCurrentDeployment, setIsCurrentDeployment] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
   const [rollbackOpen, setRollbackOpen] = useState(false)
   const [rolling, setRolling] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -53,11 +55,15 @@ export default function DeploymentDetailPage() {
 
   useEffect(() => {
     if (authLoading) return
-    Promise.all([load(), getProject(id)])
+    Promise.all([load(), getProject(id).catch((err) => {
+      if (err instanceof Error && err.message === 'FORBIDDEN') setForbidden(true)
+      throw err
+    })])
       .then(([, project]) => {
         setIsCurrentDeployment(project.currentDeploymentId === deploymentId)
         document.title = `Déploiement | ${project.name} | Pontis`
       })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [id, deploymentId, authLoading])
 
@@ -125,6 +131,7 @@ export default function DeploymentDetailPage() {
   }
 
   if (loading) return <Text size="3" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
+  if (forbidden) return <ForbiddenView />
   if (!deployment) return <Text size="3" style={{ color: 'var(--red-10)' }}>Déploiement introuvable.</Text>
 
   const isActive = deployment.status === 'building' || deployment.status === 'pending'

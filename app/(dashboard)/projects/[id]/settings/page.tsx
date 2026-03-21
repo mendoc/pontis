@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Box, Flex, Heading, Text, Separator, Button, Badge, TextField, AlertDialog } from '@radix-ui/themes'
 import { CopyIcon, CheckIcon, ReloadIcon, StopIcon, PlayIcon, Pencil1Icon } from '@radix-ui/react-icons'
+import { ForbiddenView } from '@/app/components/ForbiddenView'
 import { useProjects, Project, Deployment } from '@/app/context/projects'
 import { useAuth } from '@/app/context/auth'
 import { useToast } from '@/app/components/Toast'
@@ -204,6 +205,7 @@ export default function ProjectSettingsPage() {
   const { isLoading: authLoading, role } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
   const [lastDeployment, setLastDeployment] = useState<Deployment | null>(null)
 
   const loadLastDeployment = async () => {
@@ -218,7 +220,9 @@ export default function ProjectSettingsPage() {
   useEffect(() => {
     if (authLoading) return
     Promise.all([
-      getProject(id).then((p) => { setProject(p); document.title = `Configuration | ${p.name} | Pontis` }).catch(() => {}),
+      getProject(id).then((p) => { setProject(p); document.title = `Configuration | ${p.name} | Pontis` }).catch((err) => {
+        if (err instanceof Error && err.message === 'FORBIDDEN') setForbidden(true)
+      }),
       loadLastDeployment(),
     ]).finally(() => setLoading(false))
   }, [id, authLoading])
@@ -226,6 +230,8 @@ export default function ProjectSettingsPage() {
   if (loading) {
     return <Text size="3" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
   }
+
+  if (forbidden) return <ForbiddenView />
 
   if (!project) {
     return <Text size="3" style={{ color: 'var(--red-10)' }}>Projet introuvable.</Text>
