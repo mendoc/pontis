@@ -463,25 +463,29 @@ export default function DashboardPage() {
         <Text size="2" style={{ color: 'var(--gray-9)' }}>Chargement…</Text>
       ) : baseTotal > 0 && (
         <>
-          <TextField.Root
-            size="2"
-            placeholder="Rechercher un service"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            mb="4"
-            style={{ maxWidth: 400 }}
-          >
-            {search && (
-              <TextField.Slot side="right">
-                <button
-                  onClick={clearSearch}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-9)', display: 'flex', alignItems: 'center', padding: 0 }}
-                >
-                  <Cross2Icon width={12} height={12} />
-                </button>
-              </TextField.Slot>
-            )}
-          </TextField.Root>
+          <Flex align="center" gap="3" mb="4">
+            <TextField.Root
+              size="2"
+              placeholder="Rechercher un service"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ maxWidth: 400, flex: 1 }}
+            >
+              {search && (
+                <TextField.Slot side="right">
+                  <button
+                    onClick={clearSearch}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-9)', display: 'flex', alignItems: 'center', padding: 0 }}
+                  >
+                    <Cross2Icon width={12} height={12} />
+                  </button>
+                </TextField.Slot>
+              )}
+            </TextField.Root>
+            <Text size="2" style={{ color: 'var(--gray-10)', opacity: searching ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+              {(() => { const n = isLocalMode ? displayedProjects.length : total; return search ? `${n} résultat${n > 1 ? 's' : ''}` : `${n} au total` })()}
+            </Text>
+          </Flex>
           <Box style={{ border: '1px solid var(--gray-4)', borderRadius: 6, overflow: 'hidden', opacity: searching ? 0.6 : 1 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
