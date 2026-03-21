@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Badge, Box, Button, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { Cross2Icon, LockClosedIcon } from '@radix-ui/react-icons'
+import { Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
+import { Cross2Icon, DotsHorizontalIcon, LockClosedIcon } from '@radix-ui/react-icons'
 import { useAuth } from '@/app/context/auth'
 import { SortableHeader, SortOrder } from '@/app/components/SortableHeader'
 import { formatDate } from '@/app/lib/formatDate'
@@ -13,6 +13,7 @@ interface AdminUser {
   email: string
   name: string | null
   role: 'developer' | 'admin'
+  blocked: boolean
   authMethod: 'password' | 'gitlab'
   createdAt: string
   _count: { projects: number }
@@ -39,7 +40,7 @@ function AuthMethodBadge({ method }: { method: 'password' | 'gitlab' }) {
 const LIMIT = 20
 
 export default function AdminUsersPage() {
-  const { accessToken, role, isLoading: authLoading, refreshSession } = useAuth()
+  const { accessToken, role, userId: currentUserId, isLoading: authLoading, refreshSession } = useAuth()
 
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
@@ -50,6 +51,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
 
   const router = useRouter()
 
@@ -73,6 +75,33 @@ export default function AdminUsersPage() {
 
     const newToken = await refreshSession()
     return doRequest(newToken)
+  }
+
+  const authPatch = async (url: string, body: object): Promise<Response> => {
+    const doRequest = (token: string | null) =>
+      fetch(url, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    const res = await doRequest(tokenRef.current)
+    if (res.status !== 401) return res
+    return doRequest(await refreshSession())
+  }
+
+  const handleRoleChange = async (user: AdminUser, newRole: 'admin' | 'developer') => {
+    setActionLoadingId(user.id)
+    try {
+      const res = await authPatch(`/api/v1/users/${user.id}/role`, { role: newRole })
+      if (res.ok) setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, role: newRole } : u))
+    } catch { /* silencieux */ }
+    finally { setActionLoadingId(null) }
+  }
+
+  const handleBlockToggle = async (user: AdminUser) => {
+    const newBlocked = !user.blocked
+    setActionLoadingId(user.id)
+    try {
+      const res = await authPatch(`/api/v1/users/${user.id}/block`, { blocked: newBlocked })
+      if (res.ok) setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, blocked: newBlocked } : u))
+    } catch { /* silencieux */ }
+    finally { setActionLoadingId(null) }
   }
 
   const fetchUsers = async (p: number, s: string, sb: string, so: SortOrder): Promise<UsersPage> => {
@@ -220,6 +249,7 @@ export default function AdminUsersPage() {
                   <SortableHeader label="Authentif."   field="authMethod" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortableHeader label="Projets"      field="projects"   sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                   <SortableHeader label="Inscrit"      field="createdAt"  sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                  <th style={{ padding: '10px 16px', width: 48 }} />
                 </tr>
               </thead>
               <tbody>
@@ -231,9 +261,12 @@ export default function AdminUsersPage() {
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ''; setHoveredId(null) }}
                   >
                     <td style={{ padding: '12px 16px' }}>
-                      <Text size="2" weight="medium" style={{ color: 'var(--gray-12)' }}>
-                        {user.name ?? <span style={{ color: 'var(--gray-8)' }}>—</span>}
-                      </Text>
+                      <Flex align="center" gap="2">
+                        <Text size="2" weight="medium" style={{ color: user.blocked ? 'var(--gray-8)' : 'var(--gray-12)' }}>
+                          {user.name ?? <span style={{ color: 'var(--gray-8)' }}>—</span>}
+                        </Text>
+                        {user.blocked && <Badge color="red" variant="soft" size="1">Bloqué</Badge>}
+                      </Flex>
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <Text size="2" style={{ color: 'var(--gray-11)', fontFamily: 'monospace' }}>{user.email}</Text>
@@ -259,10 +292,46 @@ export default function AdminUsersPage() {
                     <td style={{ padding: '12px 16px' }}>
                       <Text size="2" style={{ color: 'var(--gray-10)' }}>{formatDate(user.createdAt)}</Text>
                     </td>
+                    <td style={{ padding: '12px 16px', width: 48 }}>
+                      {user.id !== currentUserId && (
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger>
+                            <Button
+                              variant="ghost" color="gray" size="1"
+                              disabled={actionLoadingId === user.id}
+                              style={{ cursor: 'pointer', padding: '0 6px', height: 28, opacity: actionLoadingId === user.id ? 0.5 : 1 }}
+                            >
+                              <DotsHorizontalIcon />
+                            </Button>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Content align="end" size="2">
+                            {user.role === 'developer' ? (
+                              <DropdownMenu.Item onClick={() => handleRoleChange(user, 'admin')}>
+                                Nommer admin
+                              </DropdownMenu.Item>
+                            ) : (
+                              <DropdownMenu.Item onClick={() => handleRoleChange(user, 'developer')}>
+                                Révoquer admin
+                              </DropdownMenu.Item>
+                            )}
+                            <DropdownMenu.Separator />
+                            {user.blocked ? (
+                              <DropdownMenu.Item onClick={() => handleBlockToggle(user)}>
+                                Débloquer
+                              </DropdownMenu.Item>
+                            ) : (
+                              <DropdownMenu.Item color="red" onClick={() => handleBlockToggle(user)}>
+                                Bloquer
+                              </DropdownMenu.Item>
+                            )}
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Root>
+                      )}
+                    </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} style={{ padding: '24px 16px', textAlign: 'center' }}>
+                    <td colSpan={7} style={{ padding: '24px 16px', textAlign: 'center' }}>
                       <Text size="2" style={{ color: 'var(--gray-9)' }}>
                         {search ? 'Aucun utilisateur ne correspond à la recherche.' : 'Aucun utilisateur.'}
                       </Text>

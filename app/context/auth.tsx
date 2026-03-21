@@ -93,7 +93,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.error === 'SSO account has no password') {
         throw new Error('Ce compte utilise GitLab pour se connecter')
       }
-      throw new Error(data.message ?? 'Identifiants incorrects')
+      if (data.error === 'Account blocked') {
+        throw new Error('Ce compte a été bloqué. Contactez un administrateur.')
+      }
+      throw new Error(data.error ?? data.message ?? 'Identifiants incorrects')
     }
 
     const data = await res.json()
