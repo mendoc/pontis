@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertDialog, Badge, Box, Button, DropdownMenu, Flex, Heading, Text, TextField } from '@radix-ui/themes'
 import { CopyIcon, CheckIcon, Cross2Icon, DotsHorizontalIcon, LockClosedIcon, PersonIcon, StopIcon, ReloadIcon, TrashIcon } from '@radix-ui/react-icons'
@@ -266,7 +266,7 @@ function ProjectRow({ project, selected, onSelect, onUpdate, onDelete }: {
 
 const LIMIT = 10
 
-export default function AdminProjectsPage() {
+function AdminProjectsContent() {
   const { accessToken, role, isLoading: authLoading, refreshSession } = useAuth()
   const { stopProject, restartProject, deleteProject } = useProjects()
   const { toast } = useToast()
@@ -635,5 +635,13 @@ export default function AdminProjectsPage() {
         </AlertDialog.Content>
       </AlertDialog.Root>
     </Box>
+  )
+}
+
+export default function AdminProjectsPage() {
+  return (
+    <Suspense>
+      <AdminProjectsContent />
+    </Suspense>
   )
 }
